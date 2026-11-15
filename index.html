@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="學習小伙伴">
+  <meta name="theme-color" content="#2fa86b">
+  <title>汪汪小精靈 學習小伙伴（平板／網頁版 v3.4.1）</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <!-- 頂部狀態列 -->
+  <header class="topbar">
+    <div class="brand">
+      <span>🐶 學習小伙伴</span>
+      <select id="gradeSelect" style="border-radius:10px;border:2px solid var(--line);padding:4px 8px;font-weight:700;background:#fff;color:var(--text);">
+        <option value="low">國小低年級</option>
+        <option value="mid" selected>國小中高年級</option>
+        <option value="jh">國中</option>
+        <option value="sh">高中</option>
+      </select>
+    </div>
+    <div class="stats-pills">
+      <span class="stat-badge" title="連續學習天數">🔥 <span id="topStreak">0</span> 天</span>
+      <span class="stat-badge" title="目前擁有的星星">⭐ <span id="topStars">0</span></span>
+      <span class="stat-badge" title="總經驗值">✨ <span id="topXp">0</span> XP</span>
+      <span class="stat-badge" title="英語闖關愛心">❤️ <span id="topHearts">5</span>/5</span>
+    </div>
+  </header>
+
+  <!-- 主版面 -->
+  <main class="layout">
+    <!-- 左側／上方：寵物陪伴舞台 -->
+    <aside class="pet-stage">
+      <div id="petBubble" class="pet-bubble">汪！歡迎回來，今天想先學英語還是完成好習慣打卡呢？</div>
+      <div class="pet-canvas-wrap" id="petCanvasWrap" title="點我摸摸頭！">
+        <canvas id="petCanvas" width="220" height="190"></canvas>
+      </div>
+      <div class="pet-info-bar">
+        <div class="pet-name-row" id="petNameLabel">🐕 威爾斯柯基</div>
+        <div class="pet-sub-row" id="petSubLabel">💕 親密度 Lv1 ｜ 拿手：⏱ 專注讀書（+25% XP）</div>
+      </div>
+
+      <div class="meter-row">
+        <div style="display:flex;justify-content:space-between;">
+          <span>💕 親密度進度</span>
+          <span id="bondMeterText">0 / 30</span>
+        </div>
+        <div class="bar-track">
+          <div id="bondBarFill" class="bar-fill" style="width:10%;background:var(--pink);"></div>
+        </div>
+      </div>
+
+      <div class="meter-row">
+        <div style="display:flex;justify-content:space-between;">
+          <span>🍖 飽足與活力</span>
+          <span id="hungerMeterText">85%</span>
+        </div>
+        <div class="bar-track">
+          <div id="hungerBarFill" class="bar-fill" style="width:85%;background:var(--orange);"></div>
+        </div>
+      </div>
+
+      <div class="pet-actions">
+        <button class="btn btn-soft" id="btnPetTouch">👋 摸摸牠</button>
+        <button class="btn btn-orange" id="btnOpenShop">🥣 餵食商店</button>
+        <button class="btn btn-purple" id="btnOpenCard">🪪 寵物卡</button>
+      </div>
+
+      <!-- 桌面版同款：全畫面走動與互動百寶箱 -->
+      <div class="pet-playground-box">
+        <div class="playground-title">
+          <span>🎾 陪夥伴玩耍＆才藝</span>
+          <button class="chip-btn" id="btnTogglePeek" title="讓狗狗乖乖待在右下角或自由走動">👁 自由走動中</button>
+        </div>
+        <!-- v3.3.0：內容由 app.js 的 renderPlayground() 產生（餵食／玩具要花星星，才藝依親密度解鎖） -->
+        <div id="playgroundBody"></div>
+      </div>
+    </aside>
+
+    <!-- 右側／下方：四大核心功能分頁 -->
+    <section id="mainContent">
+      <!-- 分頁 1：英語單字闖關 -->
+      <div id="tab-english" class="tab-pane"></div>
+
+      <!-- 分頁 2：自我打卡（好習慣與功課） -->
+      <div id="tab-checkin" class="tab-pane" style="display:none;"></div>
+
+      <!-- 分頁 3：寵物圖鑑與配件 -->
+      <div id="tab-dex" class="tab-pane" style="display:none;"></div>
+
+      <!-- 分頁 4：搬家碼與跨裝置備份 -->
+      <div id="tab-transfer" class="tab-pane" style="display:none;"></div>
+    </section>
+  </main>
+
+  <!-- 底部導覽列 -->
+  <nav class="bottom-nav">
+    <button class="nav-tab active" data-tab="english">
+      <span>🦉 英語闖關</span>
+    </button>
+    <button class="nav-tab" data-tab="checkin">
+      <span>✅ 自我打卡</span>
+    </button>
+    <button class="nav-tab" data-tab="dex">
+      <span>📖 寵物圖鑑</span>
+    </button>
+    <button class="nav-tab" data-tab="transfer">
+      <span>📦 搬家碼／備份</span>
+    </button>
+  </nav>
+
+  <!-- 全畫面桌面級走動與物理互動舞台（不擋按鈕點擊） -->
+  <canvas id="worldCanvas"></canvas>
+
+  <!-- 通用彈出視窗 -->
+  <div id="modalBackdrop" class="modal-backdrop">
+    <div id="modalCard" class="modal-card"></div>
+  </div>
+
+  <script src="./vocab_data.js"></script>
+  <script src="./qrcode.js"></script>
+  <script src="./stamp.js"></script>
+  <script src="./pet_engine.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

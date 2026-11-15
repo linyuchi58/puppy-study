@@ -1,0 +1,669 @@
+:root {
+  --bg: #fffaf4;
+  --card: #ffffff;
+  --line: #f0d9c4;
+  --text: #4a3b32;
+  --muted: #9b8b7e;
+  --green: #2fa86b;
+  --green-d: #23855a;
+  --green-l: #e3f6ea;
+  --orange: #f0883e;
+  --orange-l: #fff1e4;
+  --red: #e5534b;
+  --red-l: #fde8e6;
+  --blue: #3d8fd6;
+  --blue-l: #e9f3fc;
+  --purple: #7a6bd1;
+  --purple-l: #f0eefc;
+  --pink: #e5679a;
+  --pink-l: #fdeef4;
+  --gold: #f5b301;
+  --gold-l: #fff6d6;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  font-family: "Microsoft JhengHei UI", "PingFang TC", "Noto Sans TC", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  padding-bottom: 84px;
+  user-select: none;
+}
+
+/* 頂部狀態列 */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: rgba(255, 250, 244, 0.96);
+  backdrop-filter: blur(8px);
+  border-bottom: 2px solid var(--line);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.brand {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stats-pills {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.stat-badge {
+  background: var(--card);
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 主版面：平板橫放時左右分欄，直放時上下排列 */
+.layout {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 820px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 寵物陪伴卡片 */
+.pet-stage {
+  background: var(--card);
+  border: 2px solid var(--line);
+  border-radius: 22px;
+  padding: 16px;
+  box-shadow: 0 6px 18px rgba(74, 59, 50, 0.05);
+  position: sticky;
+  top: 68px;
+}
+
+@media (max-width: 820px) {
+  .pet-stage {
+    position: static;
+  }
+}
+
+.pet-bubble {
+  background: var(--green-l);
+  border: 2px solid #bce8ce;
+  color: var(--text);
+  border-radius: 16px;
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  transition: all 0.25s ease;
+}
+
+.pet-canvas-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  position: relative;
+}
+
+.pet-info-bar {
+  text-align: center;
+  margin-top: 6px;
+}
+
+.pet-name-row {
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.pet-sub-row {
+  font-size: 0.86rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.meter-row {
+  margin-top: 10px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.bar-track {
+  height: 11px;
+  background: #f2eae1;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.35s ease;
+}
+
+.pet-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* 全畫面走動寵物舞台與互動百寶箱 */
+#worldCanvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 60;
+}
+
+.pet-playground-box {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 2px dashed var(--line);
+}
+
+.playground-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.92rem;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.playground-tip {
+  background: var(--gold-l);
+  border: 1.5px solid #f2dca6;
+  border-radius: 12px;
+  padding: 7px 10px;
+  font-size: 0.8rem;
+  color: var(--text);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.chip-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.chip-btn {
+  min-height: 34px;
+  border-radius: 10px;
+  border: 1.5px solid var(--line);
+  background: #fffdf9;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 4px 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  transition: transform 0.1s ease, background 0.15s ease;
+}
+
+.chip-btn:hover {
+  background: var(--orange-l);
+  border-color: var(--orange);
+}
+
+.chip-btn:active {
+  transform: scale(0.95);
+}
+
+/* 按鈕與卡片 */
+.btn {
+  min-height: 46px;
+  border: none;
+  border-radius: 14px;
+  padding: 10px 16px;
+  font-size: 1rem;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: transform 0.1s ease, filter 0.15s ease;
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn-green { background: var(--green); color: #fff; }
+.btn-orange { background: var(--orange); color: #fff; }
+.btn-purple { background: var(--purple); color: #fff; }
+.btn-pink { background: var(--pink); color: #fff; }
+.btn-blue { background: var(--blue); color: #fff; }
+.btn-soft {
+  background: #f7efe6;
+  color: var(--text);
+  border: 2px solid var(--line);
+}
+
+.card-box {
+  background: var(--card);
+  border: 2px solid var(--line);
+  border-radius: 22px;
+  padding: 18px;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 14px rgba(74, 59, 50, 0.04);
+}
+
+.section-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  margin: 0 0 6px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.section-sub {
+  color: var(--muted);
+  font-size: 0.92rem;
+  margin: 0 0 14px 0;
+}
+
+/* 自我打卡項目 */
+.checkin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.checkin-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 2px solid var(--line);
+  background: #fffdf9;
+  cursor: pointer;
+  min-height: 62px;
+  transition: all 0.15s ease;
+}
+
+.checkin-item.done {
+  background: var(--green-l);
+  border-color: #9de0ba;
+}
+
+.checkin-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.check-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 3px solid var(--green);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  background: #fff;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.checkin-item.done .check-circle {
+  background: var(--green);
+}
+
+/* 英語闖關 */
+.track-pills {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  margin-bottom: 12px;
+}
+
+.track-pill {
+  white-space: nowrap;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 2px solid var(--line);
+  background: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  min-height: 42px;
+}
+
+.track-pill.active {
+  background: var(--green);
+  color: #fff;
+  border-color: var(--green);
+}
+
+.unit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.unit-card {
+  border: 2px solid var(--line);
+  border-radius: 18px;
+  padding: 14px;
+  background: #fffdf9;
+}
+
+.lesson-btns {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.lesson-btn {
+  flex: 1;
+  min-height: 44px;
+  border-radius: 12px;
+  border: 2px solid var(--line);
+  background: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.lesson-btn.done {
+  background: var(--green-l);
+  border-color: var(--green);
+  color: var(--green-d);
+}
+
+.lesson-btn.current {
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
+}
+
+.lesson-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 答題區 */
+.quiz-prompt {
+  font-size: 1.45rem;
+  font-weight: 800;
+  text-align: center;
+  margin: 14px 0;
+}
+
+.choice-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+@media (max-width: 560px) {
+  .choice-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.choice-btn {
+  min-height: 58px;
+  border-radius: 16px;
+  border: 2px solid var(--line);
+  background: #fff;
+  font-size: 1.08rem;
+  font-weight: 700;
+  padding: 12px 16px;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.choice-btn.correct {
+  background: var(--green-l);
+  border-color: var(--green);
+  color: var(--green-d);
+}
+
+.choice-btn.wrong {
+  background: var(--red-l);
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.tile-pool, .tile-answer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  min-height: 56px;
+  padding: 10px;
+  border-radius: 16px;
+  border: 2px dashed var(--line);
+  margin: 10px 0;
+}
+
+.letter-tile {
+  min-width: 46px;
+  min-height: 48px;
+  border-radius: 12px;
+  border: 2px solid var(--line);
+  background: #fff;
+  font-size: 1.2rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+/* 圖鑑網格 */
+.dex-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 12px;
+}
+
+.dex-card {
+  border: 2px solid var(--line);
+  border-radius: 18px;
+  padding: 14px;
+  text-align: center;
+  background: #fffdf9;
+}
+
+.dex-card.locked {
+  background: #f5efe8;
+  color: var(--muted);
+}
+
+/* 底部導覽列 */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  background: var(--card);
+  border-top: 2px solid var(--line);
+  display: flex;
+  justify-content: space-around;
+  padding: 6px 8px;
+}
+
+.nav-tab {
+  flex: 1;
+  max-width: 180px;
+  min-height: 52px;
+  border: none;
+  background: transparent;
+  border-radius: 14px;
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.nav-tab.active {
+  background: var(--green-l);
+  color: var(--green-d);
+}
+
+/* 彈出對話框（誠實打卡、商店、寵物卡） */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(40, 30, 24, 0.48);
+  z-index: 100;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modal-backdrop.open {
+  display: flex;
+}
+
+.modal-card {
+  background: var(--bg);
+  border: 3px solid var(--line);
+  border-radius: 24px;
+  max-width: 560px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 22px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.2);
+}
+
+
+/* ── v3.3.0 百寶箱：餵食／玩具（花星星）、才藝（親密度解鎖） ── */
+.playground-toggle {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  background: var(--gold-l);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 800;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.playground-toggle small { font-weight: 700; color: var(--muted); margin-left: 6px; }
+.playground-inner { margin-top: 8px; }
+.playground-inner[hidden] { display: none; }
+.play-tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+.play-tab {
+  flex: 1;
+  min-height: 40px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.play-tab.active { background: var(--green-l); border-color: var(--green); color: var(--green-d); }
+.chip-grid { grid-template-columns: repeat(2, 1fr); }
+.chip-btn { min-height: 46px; flex-direction: column; gap: 0; line-height: 1.25; font-size: 0.88rem; }
+.chip-btn small { font-size: 0.74rem; font-weight: 800; color: var(--orange); }
+.chip-btn.chip-poor { opacity: 0.6; }
+.chip-btn.chip-locked { background: #f5efe8; color: var(--muted); border-style: dashed; }
+.chip-btn.chip-locked small { color: var(--purple); }
+.playground-inner .playground-tip { margin: 8px 0 0; }
+.playground-title .chip-btn { flex-direction: row; min-height: 36px; padding: 4px 10px; }
+.playground-toggle:focus-visible, .play-tab:focus-visible, .chip-btn:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 2px;
+}
+@media (max-width: 820px) {
+  .chip-grid { grid-template-columns: repeat(3, 1fr); }
+}
+.bottom-nav { padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px)); }
+
+/* ── v3.3.0 版面修正 ── */
+/* 右邊內容被路線按鈕撐寬、整頁往右超出畫面（平板直放和橫放都會） */
+.layout { grid-template-columns: 320px minmax(0, 1fr); }
+#mainContent, .pet-stage { min-width: 0; }
+/* 側欄比螢幕高時，下面的按鈕要能捲得到 */
+.pet-stage { max-height: calc(100vh - 68px - 96px); overflow-y: auto; overscroll-behavior: contain; }
+@media (max-width: 820px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .pet-stage { max-height: none; overflow: visible; }
+}
+.pet-actions .btn { white-space: nowrap; padding-left: 6px; padding-right: 6px; font-size: 0.9rem; }
+
+/* ── v3.4.0 家長蓋章 ── */
+.stamp-card { background: var(--gold-l); border-color: #f2dca6; }
+.stamp-status { font-weight: 800; margin: 4px 0 12px; }
+.stamp-status.good { color: var(--green-d); }
+.stamp-steps { margin: 0 0 10px; padding-left: 22px; font-size: 0.95rem; line-height: 1.6; }
+.stamp-qr { display: flex; justify-content: center; margin: 6px 0 12px; }
+.stamp-qr svg { width: min(260px, 70vw); height: auto; background: #fff; border-radius: 12px; }
+.stamp-label { display: block; font-weight: 800; text-align: center; margin-bottom: 6px; }
+.stamp-input {
+  display: block; width: 100%; max-width: 220px; margin: 0 auto 6px; padding: 8px;
+  font-family: inherit; font-size: 1.6rem; font-weight: 800; letter-spacing: 0.3em; text-align: center;
+  border: 2px solid var(--line); border-radius: 14px; background: #fff; color: var(--text);
+}
+.stamp-input:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+.stamp-msg { min-height: 1.4em; color: var(--red); font-weight: 800; text-align: center; margin-bottom: 8px; }
