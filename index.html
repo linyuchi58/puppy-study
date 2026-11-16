@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="學習小伙伴">
   <meta name="theme-color" content="#2fa86b">
-  <title>汪汪小精靈 學習小伙伴（平板／網頁版 v3.4.1）</title>
+  <title>汪汪小精靈 學習小伙伴（平板／網頁版 v3.5.0）</title>
   <link rel="manifest" href="./manifest.json">
   <link rel="stylesheet" href="./style.css">
 </head>
@@ -89,6 +89,9 @@
       <!-- 分頁 2：自我打卡（好習慣與功課） -->
       <div id="tab-checkin" class="tab-pane" style="display:none;"></div>
 
+      <!-- 分頁：英打練習（v3.5.0，內容由 typing.js 產生） -->
+      <div id="tab-typing" class="tab-pane" style="display:none;"></div>
+
       <!-- 分頁 3：寵物圖鑑與配件 -->
       <div id="tab-dex" class="tab-pane" style="display:none;"></div>
 
@@ -104,6 +107,9 @@
     </button>
     <button class="nav-tab" data-tab="checkin">
       <span>✅ 自我打卡</span>
+    </button>
+    <button class="nav-tab" data-tab="typing">
+      <span>⌨️ 英打練習</span>
     </button>
     <button class="nav-tab" data-tab="dex">
       <span>📖 寵物圖鑑</span>
@@ -124,6 +130,7 @@
   <script src="./vocab_data.js"></script>
   <script src="./qrcode.js"></script>
   <script src="./stamp.js"></script>
+  <script src="./typing.js"></script>
   <script src="./pet_engine.js"></script>
   <script src="./app.js"></script>
 </body>

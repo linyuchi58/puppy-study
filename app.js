@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.4.1';
-  const APP_BUILD = '20261115-5';
+  const APP_VERSION = 'v3.5.0';
+  const APP_BUILD = '20261116-1';
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
   const STORAGE_KEY = 'puppy_study_save_v2' + (SELFTEST ? '_selftest' : '');
@@ -1096,7 +1096,8 @@
   function syncFocusMode() {
     const pi = window.PuppyInteractive;
     if (!pi || !pi.setPeek) return;
-    const want = !!currentQuiz && activeTab === 'english';
+    const want = (!!currentQuiz && activeTab === 'english') ||
+      (activeTab === 'typing' && !!window.PuppyTyping && window.PuppyTyping.isPlaying());
     if (want && !userPeek && !autoPeek) {
       pi.setPeek(true);
       autoPeek = true;
@@ -2315,7 +2316,8 @@
   // ── 切換分頁與事件綁定 ──
   function switchTab(tab) {
     activeTab = tab;
-    ['english', 'checkin', 'dex', 'transfer'].forEach(t => {
+    if (window.PuppyTyping && activeTab === 'typing' && tab !== 'typing') window.PuppyTyping.hide();
+    ['english', 'checkin', 'typing', 'dex', 'transfer'].forEach(t => {
       const pane = document.getElementById('tab-' + t);
       if (pane) pane.style.display = t === tab ? 'block' : 'none';
     });
@@ -2326,6 +2328,8 @@
     if (tab === 'checkin') renderCheckinTab();
     if (tab === 'dex') renderDexTab();
     if (tab === 'transfer') renderTransferTab();
+    if (tab === 'typing' && window.PuppyTyping) window.PuppyTyping.show();
+    if (tab !== 'english') syncFocusMode();
   }
 
   function initEvents() {
@@ -2400,11 +2404,21 @@
   if (window.PuppyInteractive) window.PuppyInteractive.init();
   initEvents();
   initPlayground();
+  // v3.5.0 英打練習：紀錄放在 state.typing，獎勵走同一個 award()
+  if (window.PuppyTyping) {
+    window.PuppyTyping.mount(document.getElementById('tab-typing'), {
+      getState: () => state,
+      save: () => saveState(),
+      award: (xp, stars, subj, text) => award(xp, stars, subj, text),
+      petSay: msg => petSay(msg, 'normal'),
+      focus: () => syncFocusMode()
+    });
+  }
   updateTopBar();
   updatePetSidebar();
   greetWithMemory();
   if (saveWarning) petSay(saveWarning, 'normal');
-  switchTab('english');
+  switchTab(location.hash === '#typing' ? 'typing' : 'english');
   setInterval(() => { tickFullness(); updatePetSidebar(); }, 60000);
   // v3.3.2：離開頁面時把今天的自動備份更新成最新；並請瀏覽器不要自動清掉這個網站的資料
   document.addEventListener('visibilitychange', () => {
@@ -2513,6 +2527,40 @@
       ok(tryStamp(sc)[0] === true && state.stars === sBefore + STAMP_STARS && state.totals.parent_stamps === 1, '蓋章碼正確：加碼 +3⭐');
       ok(stampState()[0] === 'done' && tryStamp(sc)[0] === false, '一天只能蓋一次章');
       PARENT_PAGE_URL = '';
+      // 英打練習（v3.5.0）
+      const T = window.PuppyTyping && window.PuppyTyping._t;
+      ok(!!T, '英打練習有載入');
+      if (T) {
+        const F = T.FINGER_OF;
+        ok(F.f === 'L2' && F.j === 'R2' && F[' '] === 'T' && F.b === 'L2' && F.y === 'R2' && F.a === 'L5' && F.p === 'R5', '手指對應正確（F、B 左食指，J、Y 右食指）');
+        const all = T.LETTERS_BEFORE.L15;
+        ok(all.length === 26 && new Set(all.split('')).size === 26, '15 關剛好教完 26 個字母');
+        ok(/^[fj ]+$/.test(T.makeText('fj', 'fj', 30)), '第 1 關只會出現 F、J 和空白');
+        ok(T.starsFor(99, 0) === 3 && T.starsFor(90, 0) === 2 && T.starsFor(70, 0) === 1 && T.starsFor(99, 2) === 0, '星星：95%↑三顆、85%↑兩顆、亂按兩次沒有星星');
+        state.typing = {};
+        state.stars = 0;
+        const key = (k, extra) => T.handleKey(Object.assign({ key: k, preventDefault() {}, getModifierState() { return false; } }, extra || {}));
+        T.startLesson('L01');
+        const r = T.run();
+        const want = r.text[0];
+        const wrong = want === 'f' ? 'k' : 'f';
+        ok(key(wrong) === 'miss' && T.run().pos === 0 && T.run().miss === 1, '打錯不會往前，記一次錯');
+        ok(key('ㄅ', { key: 'Process', keyCode: 229 }) === 'ime', '中文輸入法開著時會提醒切換');
+        ok(key(want) === 'ok' && T.run().pos === 1, '打對往前一格');
+        T.setRun({ wrongTimes: [], wrongStreak: 0 });
+        let res = '';
+        for (let i = 0; i < 8; i++) res = key(T.run().text[T.run().pos] === 'f' ? 'k' : 'f');
+        ok(res === 'mash' && T.status()[0] === 'red' && T.run().mash === 1, '2 秒內打錯 8 次：顯示紅色「亂按」');
+        T.quit();
+        const playAll = id => { T.startLesson(id); let g = 0; while (T.run() && g++ < 500) key(T.run().text[T.run().pos]); };
+        const s0 = state.stars;
+        playAll('L01');
+        ok(T.result().stars === 3 && T.result().xp === 8 && state.stars === s0 + 3 && state.typing.prog.L01 === 3, '第 1 關全對：三顆星、+8 經驗值、+3⭐');
+        ok(T.unlockedIndex() === 1, '過了第 1 關，第 2 關打開');
+        playAll('L01');
+        ok(T.result().xp === 3 && state.stars === s0 + 3, '重玩已經三顆星的關卡：+3 經驗值、沒有星星');
+        ok(state.typing.days[todayStr()].lessons === 2 && state.typing.keys.f[0] > 0, '今天的練習紀錄和按鍵統計有記下來');
+      }
       // 每日自動備份
       keys.forEach(k => { try { localStorage.removeItem(k); } catch (e) { /* 忽略 */ } });
       dailyKeys().forEach(k => localStorage.removeItem(k));

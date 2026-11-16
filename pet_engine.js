@@ -1584,8 +1584,8 @@
       ctx.restore();
     });
 
-    // 7. 狗狗頭頂對話小氣泡
-    if (world.speech.timer > 0 && world.speech.text) {
+    // 7. 狗狗頭頂對話小氣泡（v3.5.0：坐在角落時不畫，避免蓋住題目和鍵盤；側欄的對話框會顯示同一句話）
+    if (!world.peekMode && world.speech.timer > 0 && world.speech.text) {
       const [hx, hy] = world.dog.rendered.head || [world.dog.x, world.dog.y - 65 * S];
       const bx = clamp(hx, 150, world.W - 150);
       const by = Math.max(48, hy - 54 * S);
