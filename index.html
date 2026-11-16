@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="學習小伙伴">
   <meta name="theme-color" content="#2fa86b">
-  <title>汪汪小精靈 學習小伙伴（平板／網頁版 v3.7.0）</title>
+  <title>汪汪小精靈 學習小伙伴（平板／網頁版 v3.7.1）</title>
   <link rel="manifest" href="./manifest.json">
   <link rel="stylesheet" href="./style.css">
 </head>
@@ -100,6 +100,9 @@
     </section>
   </main>
 
+  <!-- 瀏覽人次（低調小字，counter.js 產生；不想要時刪掉下面載入 counter.js 那一行即可） -->
+  <footer class="site-foot"><span id="visitCount" hidden></span></footer>
+
   <!-- 底部導覽列 -->
   <nav class="bottom-nav">
     <button class="nav-tab active" data-tab="english">
@@ -133,6 +136,7 @@
   <script src="./zh_texts.js"></script>
   <script src="./typing.js"></script>
   <script src="./pet_engine.js"></script>
+  <script src="./counter.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

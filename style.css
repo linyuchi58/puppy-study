@@ -817,3 +817,6 @@ body {
 .ty-punct-grid span { white-space: nowrap; }
 .ty-punct-grid i { font-style: normal; font-weight: 900; font-size: 1.15rem; display: inline-block; width: 1.6em; }
 .ty-punct small { color: var(--muted); }
+
+/* ── v3.7.1 瀏覽人次（低調小字） ── */
+.site-foot { text-align: center; font-size: 0.72rem; color: var(--muted); opacity: 0.75; padding: 4px 0 8px; }

@@ -48,3 +48,5 @@ SOFTWARE.
 注音鍵位採用標準大千式排列（微軟注音預設），練習題目由程式隨機產生，沒有使用外部字表。
 
 中文打字的題目（`zh_texts.js`：詞語、短句、短文）全部是 Claude 為本專案新寫的原創文字，沒有取自任何書籍或網站。
+
+網頁最下方的「瀏覽人次」使用 [Abacus](https://github.com/JasonLovesDoggo/abacus) 免費計數服務（`counter.js`）：只送出計數請求，不送 cookie 和來源網址；同一台裝置一天算一次。

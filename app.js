@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.7.0';
-  const APP_BUILD = '20261116-3';
+  const APP_VERSION = 'v3.7.1';
+  const APP_BUILD = '20261116-4';
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
   const STORAGE_KEY = 'puppy_study_save_v2' + (SELFTEST ? '_selftest' : '');
@@ -2615,6 +2615,12 @@
           selfXp += T.result().xp;
         }
         ok(T.result().self && T.result().mode === 'zh' && selfXp === 9, '自己挑戰（注音）：每天前 3 次各 +3 經驗值，實際 ' + selfXp);
+        // 瀏覽人次（v3.7.1）：自動測試時不連線、不顯示
+        const vc = document.getElementById('visitCount');
+        ok(window.PuppyCounter && vc && vc.hidden === true, '自動測試時不連線計數、不顯示瀏覽人次');
+        window.PuppyCounter.show(1234);
+        ok(vc.textContent === '瀏覽人次 1,234' && !vc.hidden, '瀏覽人次顯示成「瀏覽人次 1,234」');
+        vc.hidden = true;
         // 中文打字（v3.7.0）
         const ZT = window.PUPPY_ZH_TEXTS;
         ok(ZT && ZT.sentences.length >= 30 && ZT.passages.length >= 15 && ZT.punct.length >= 10 && !/[A-Za-z0-9,.;:?!()]/.test([].concat(ZT.words, ZT.sentences, ZT.passages, ZT.punct).join('')), '中文題目載入了，而且沒有半形字元');
