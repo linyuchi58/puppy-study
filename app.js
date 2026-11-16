@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.7.1';
-  const APP_BUILD = '20261116-4';
+  const APP_VERSION = 'v3.7.2';
+  const APP_BUILD = '20261116-5';
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
   const STORAGE_KEY = 'puppy_study_save_v2' + (SELFTEST ? '_selftest' : '');
@@ -46,15 +46,15 @@
   const PETS = [
     ['dog:威爾斯柯基', '🐕', '威爾斯柯基', 'focus', 'free', '一開始就是你的好夥伴', 0],
     ['dog:奶油柯基', '🐕', '奶油柯基', 'homework', 'focus1', '完成 1 次專注讀書或打卡', 1],
-    ['dog:黑頭三色柯基', '🐕', '三色柯基', 'games', 'stage3', '課程挑戰包過 3 關', 3],
+    ['dog:黑頭三色柯基', '🐕', '三色柯基', 'homework', 'days10', '累積學習 10 天（不用連續）', 10],   // v3.7.2：原本「挑戰包過 3 關」
     ['dog:柴犬', '🐕', '柴犬', 'english', 'eng5', '英語闖關完成 5 關', 5],
-    ['dog:米格魯', '🐕', '米格魯', 'cards', 'streak3', '連續學習 3 天', 3],
+    ['dog:米格魯', '🐕', '米格魯', 'english', 'streak3', '連續學習 3 天', 3],
     ['dog:哈士奇', '🐕', '哈士奇', 'math', 'math150', '算術答對 150 題', 150],
     ['dog:大麥町', '🐕', '大麥町', 'calm', 'hw15', '自我打卡累積 15 項', 15],
     ['dog:巧克力拉布拉多', '🐕', '拉布拉多', 'focus', 'focus300', '專注讀書累積 300 分鐘', 300],
-    ['c3d:小熊可可.json', '🧸', '小熊可可', 'cards', 'streak7', '連續學習 7 天', 7],
+    ['c3d:小熊可可.json', '🧸', '小熊可可', 'homework', 'streak7', '連續學習 7 天', 7],
     ['c3d:小藍龍.json', '🐲', '小藍龍', 'english', 'eng30', '英語闖關完成 30 關', 30],
-    ['standee', '🖼', '我的立牌', 'games', 'stars150', '累積賺到 150 顆星星', 150]
+    ['standee', '🖼', '我的立牌', 'english', 'stars150', '累積賺到 150 顆星星', 150]
   ];
 
   const SHOP = [
@@ -585,6 +585,10 @@
       case 'free': return [1, 1];
       case 'focus1': return [Math.min(1, (t.focus_sessions || 0) + (t.hw_done || 0)), 1];
       case 'stage3': return [Math.min(3, t.stage_pass || 0), 3];
+      case 'days10': {
+        const days = Object.keys(state.history || {}).filter(k => state.history[k] && state.history[k].xp > 0).length;
+        return [Math.min(10, Math.max(days, (state.streak && state.streak.best) || 0)), 10];
+      }
       case 'eng5': return [Math.min(5, t.eng_lessons || 0), 5];
       case 'streak3': return [Math.min(3, (state.streak && state.streak.best) || 0), 3];
       case 'math150': return [Math.min(150, t.math_correct || 0), 150];
