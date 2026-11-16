@@ -46,3 +46,5 @@ SOFTWARE.
 | `jsqr.js` 1.4.0 | 教師頁用相機讀 QR Code（全部在老師自己的裝置上處理，不上傳） | [cozmo/jsQR](https://github.com/cozmo/jsQR) | Apache License 2.0，全文見 `jsqr_LICENSE.txt` |
 
 注音鍵位採用標準大千式排列（微軟注音預設），練習題目由程式隨機產生，沒有使用外部字表。
+
+中文打字的題目（`zh_texts.js`：詞語、短句、短文）全部是 Claude 為本專案新寫的原創文字，沒有取自任何書籍或網站。

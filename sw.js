@@ -1,4 +1,4 @@
-const CACHE_NAME = 'puppy-study-web-v3.6.0-20261116-2';
+const CACHE_NAME = 'puppy-study-web-v3.7.0-20261116-3';
 const ASSETS = [
   './',
   './index.html',
@@ -8,6 +8,7 @@ const ASSETS = [
   './vocab_data.js',
   './qrcode.js',
   './stamp.js',
+  './zh_texts.js',
   './typing.js',
   './parent.html', './teacher.html', './jsqr.js',
   './manifest.json'

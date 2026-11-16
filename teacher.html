@@ -57,9 +57,9 @@
         <h2>測驗設定</h2>
         <div class="row">
           <label for="mSubj">科目</label>
-          <select id="mSubj"><option value="en">英打</option><option value="zh">注音鍵位</option></select>
+          <select id="mSubj"><option value="en">英打</option><option value="zh">注音鍵位</option><option value="cn">中文打字（微軟注音）</option></select>
           <label for="mMin">時間</label>
-          <select id="mMin"><option value="1">1 分鐘</option><option value="2" selected>2 分鐘</option><option value="3">3 分鐘</option></select>
+          <select id="mMin"></select>
         </div>
         <div class="row">
           <label for="mScope">範圍</label>
@@ -76,7 +76,8 @@
           <li>等老師說開始，按 <b>Enter</b>，倒數 3 秒後開始，時間到自動結束。</li>
           <li>結束畫面會出現 QR Code，<b>先不要關掉</b>，等老師來掃。</li>
         </ol>
-        <p class="note">同一組測驗碼，全班的題目一模一樣；換一組碼，題目就不一樣。題目沒有空白鍵，得分＝打對的字數 × 正確率。</p>
+        <p class="note" id="cnNote" hidden>中文打字：請學生先把輸入法切到<b>微軟注音（中文）</b>。打錯可以繼續往下打，最後一起算；半形標點算錯，不能貼上。</p>
+        <p class="note">同一組測驗碼，全班的題目一模一樣；換一組碼，題目就不一樣。得分＝打對的字數 × 正確率。</p>
         <div class="row noprint"><button id="mAgain">換一組（同樣設定）</button><button class="main" id="mToCollect">開始收成績 ▶</button></div>
       </div>
     </section>
@@ -133,6 +134,7 @@
     const PT = window.PuppyTyping;
     const STORE = 'puppyStudy.teacher.v1' + (/[?&]apptest=1/.test(location.search) ? '.selftest' : '');
     const $ = id => document.getElementById(id);
+    const SUBJ = { en: '英打', zh: '注音鍵位', cn: '中文打字' };
     let rows = [];
     try { rows = JSON.parse(localStorage.getItem(STORE) || '[]'); if (!Array.isArray(rows)) rows = []; } catch (e) { rows = []; }
     function save() { try { localStorage.setItem(STORE, JSON.stringify(rows)); } catch (e) { /* 忽略 */ } }
@@ -153,21 +155,24 @@
     // ── ① 產生測驗碼 ──
     function fillScope() {
       const s = $('mScope');
-      if ($('mSubj').value === 'en') {
+      const subj = $('mSubj').value;
+      if (subj === 'en') {
         s.innerHTML = PT.LETTER_LESSONS.slice(0, 14).map((l, i) => {
           const info = PT.parseCode(PT.makeCode('en', 1, i + 1, 0));
           return `<option value="${i + 1}" ${i === 13 ? 'selected' : ''}>${i + 1 >= 14 ? '全部 26 個字母（第 1～14 關）' : '考到第 ' + (i + 1) + ' 關：' + info.symbols.toUpperCase().split('').join(' ')}</option>`;
         }).join('');
       } else {
-        s.innerHTML = PT.ZH_SCOPES.map(sc => `<option value="${sc.n}">${sc.title}</option>`).join('');
+        s.innerHTML = (subj === 'zh' ? PT.ZH_SCOPES : PT.CN_SCOPES).map(sc => `<option value="${sc.n}">${sc.title}</option>`).join('');
       }
+      $('mMin').innerHTML = PT.MINUTES[subj].map((x, i) => `<option value="${x}" ${i === 1 ? 'selected' : ''}>${x} 分鐘</option>`).join('');
     }
     let lastCode = '';
     function makeNew() {
       lastCode = PT.makeCode($('mSubj').value, +$('mMin').value, +$('mScope').value);
       const info = PT.parseCode(lastCode);
       $('bigCode').textContent = lastCode;
-      $('codeInfo').textContent = `${info.mode === 'en' ? '英打' : '注音鍵位'}｜${info.minutes} 分鐘｜${info.scopeText}`;
+      $('codeInfo').textContent = `${SUBJ[info.mode]}｜${info.minutes} 分鐘｜${info.scopeText}`;
+      $('cnNote').hidden = info.mode !== 'cn';
       $('codeCard').hidden = false;
       return lastCode;
     }
@@ -225,7 +230,7 @@
       const curCode = wantCode || fc.value || codes[codes.length - 1] || '';
       fc.innerHTML = codes.length ? codes.map(c => {
         const info = PT.parseCode(c);
-        return `<option value="${c}" ${c === curCode ? 'selected' : ''}>${c}（${info.mode === 'en' ? '英打' : '注音'} ${info.minutes} 分）</option>`;
+        return `<option value="${c}" ${c === curCode ? 'selected' : ''}>${c}（${SUBJ[info.mode]} ${info.minutes} 分）</option>`;
       }).join('') : '<option value="">還沒有成績</option>';
       const classes = [...new Set(rows.filter(r => r.code === fc.value).map(r => r.g + '-' + r.c))]
         .sort((a, b) => { const [ag, ac] = a.split('-').map(Number); const [bg, bc] = b.split('-').map(Number); return ag - bg || ac - bc; });
@@ -396,7 +401,13 @@
         ok(/^[1-3]\d{5}$/.test(code) && PT.parseCode(code).scope === 14, '產生的英打測驗碼格式正確');
         $('mSubj').value = 'zh'; fillScope(); $('mMin').value = '3'; $('mScope').value = '2';
         const zc = makeNew();
-        ok(zc[0] === '6' && zc.slice(1, 3) === '02', '注音 3 分鐘、範圍 2 的測驗碼：' + zc);
+        ok(zc[0] === '5' && zc.slice(1, 3) === '02', '注音鍵位 3 分鐘、範圍 2 的測驗碼：' + zc);
+        $('mSubj').value = 'cn'; fillScope();
+        ok($('mMin').options.length === 3 && $('mMin').options[2].value === '8' && $('mScope').options.length === 3, '中文打字的時間是 3／5／8 分鐘、難度 3 種');
+        $('mMin').value = '8'; $('mScope').value = '3';
+        const cc = makeNew();
+        ok(cc[0] === '9' && cc.slice(1, 3) === '03' && /中文打字｜8 分鐘/.test($('codeInfo').textContent) && !$('cnNote').hidden, '中文打字 8 分鐘、難度 3 的測驗碼：' + cc);
+        ok(addPayload(mk(cc, 4, 3, 1, 1, 40, '202611161010'))[0] && /中文打字/.test($('fCode').textContent), '中文打字的成績也能收');
       } catch (e) {
         fails.push('發生例外：' + e.message);
       }

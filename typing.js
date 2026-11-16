@@ -1,4 +1,4 @@
-// 《汪汪小精靈 學習小伙伴》打字練習（v3.6.0：英打＋注音鍵位＋全班測驗／自己挑戰）
+// 《汪汪小精靈 學習小伙伴》打字練習（v3.7.0：英打＋注音鍵位＋中文打字＋全班測驗／自己挑戰）
 //
 // 設計重點（給接手的人）：
 //   ‧ 對象：國小四年級起。重點是正確的手指（英打）、正確的鍵位（注音）和正確率，速度只當參考。
@@ -6,7 +6,9 @@
 //   ‧ 打錯不會往前跳，要打對才繼續（TypingClub 的做法）；一次加一兩個新鍵（Keybr 的做法）。
 //   ‧ 顏色帶（偏寬鬆）：🟢 穩定、🟡 錯誤比較多或休息中、🔴 只有亂按或一直按住。亂按那一段不算分。
 //   ‧ 全班測驗：老師在 teacher.html 產生 6 位數測驗碼，全班輸入同一組碼就拿到同一份題目。
-//     測驗碼＝第 1 碼（1～3 英打 1/2/3 分鐘、4～6 注音 1/2/3 分鐘）＋第 2～3 碼（範圍）＋第 4～6 碼（亂數種子）。
+//     測驗碼＝第 1 碼（1～3 英打 1/2/3 分鐘、4～6 注音鍵位 2/3/5 分鐘、7～9 中文打字 3/5/8 分鐘）＋第 2～3 碼（範圍）＋第 4～6 碼（亂數種子）。
+//   ‧ 中文打字（v3.7.0）：學生開著真的微軟注音打進輸入框，程式只比對送出的字（用最長共同子序列對齊），
+//     打錯可以繼續往下打、最後一起算；半形標點算錯並提醒；不能貼上。題目在 zh_texts.js（Claude 原創）。
 //     題目沒有空白鍵；每 5 個字之間的間隔只是好讀，不用按。得分＝打對的字數 × 正確率。
 //     結束後顯示 QR Code（年級、班級、座號、第幾次、得分…），老師在 teacher.html 用手機掃描收成績。
 //   ‧ 自己挑戰：規則和全班測驗一樣，程式隨機出一組碼。
@@ -93,6 +95,22 @@
     { id: 'Z11', add: 'ˊˇˋ˙', title: '聲調 ˊ ˇ ˋ ˙', tip: '二聲 6、三聲 3、四聲 4、輕聲 7（一聲是空白鍵）。' },
     { id: 'Z12', add: '', title: '注音符號總複習', tip: '全部的注音符號和聲調。', review: true }
   ];
+  const CN_LESSONS = [
+    { id: 'C01', title: '常用詞語', tip: '詞語之間用頓號「、」隔開，最後打句號「。」。', kind: 'words' },
+    { id: 'C02', title: '短句', tip: '每一句最後都有標點，記得用全形。', kind: 'sentences' },
+    { id: 'C03', title: '短文', tip: '打錯可以繼續往下打，最後一起算。', kind: 'passages' },
+    { id: 'C04', title: '標點符號挑戰', tip: '有引號「」、冒號：、分號；、括號（），不會打的看右邊的提示卡。', kind: 'punct' }
+  ];
+  const CN_SCOPES = [
+    { n: 1, title: '短句', kind: 'sentences' },
+    { n: 2, title: '一般短文', kind: 'passages' },
+    { n: 3, title: '標點比較多的短文', kind: 'punct' }
+  ];
+  // 各科目的測驗時間（分鐘）：測驗碼第 1 碼依序是 1～3、4～6、7～9
+  const MINUTES = { en: [1, 2, 3], zh: [2, 3, 5], cn: [3, 5, 8] };
+  const BASE_DIGIT = { en: 1, zh: 4, cn: 7 };
+  const HALF_PUNCT = /[,.;:?!()"'<>\[\]]/;
+  const CN_FAST = 120;           // 中文一分鐘超過 120 字，視為不合理（可能貼上或語音）
   function before(lessons) {
     const out = {};
     let acc = '';
@@ -101,7 +119,8 @@
   }
   const MODES = {
     en: { id: 'en', store: 'typing', lessons: LETTER_LESSONS, before: before(LETTER_LESSONS), label: '🔤 英文打字' },
-    zh: { id: 'zh', store: 'zhuyin', lessons: ZH_LESSONS, before: before(ZH_LESSONS), label: 'ㄅ 注音鍵位' }
+    zh: { id: 'zh', store: 'zhuyin', lessons: ZH_LESSONS, before: before(ZH_LESSONS), label: 'ㄅ 注音鍵位' },
+    cn: { id: 'cn', store: 'chinese', lessons: CN_LESSONS, before: {}, label: '中 中文打字' }
   };
   const LETTERS_BEFORE = MODES.en.before;
   const ZH_SCOPES = [
@@ -212,36 +231,111 @@
   // 回傳 { code, mode, minutes, scope, seed, symbols, scopeText } 或 null（碼不對）
   function parseCode(code) {
     const s = String(code || '').replace(/\D/g, '');
-    if (!/^[1-6]\d{5}$/.test(s)) return null;
+    if (!/^[1-9]\d{5}$/.test(s)) return null;
     const d1 = +s[0];
-    const mode = d1 <= 3 ? 'en' : 'zh';
-    const minutes = mode === 'en' ? d1 : d1 - 3;
+    const mode = d1 <= 3 ? 'en' : d1 <= 6 ? 'zh' : 'cn';
+    const minutes = MINUTES[mode][d1 - BASE_DIGIT[mode]];
     const scope = +s.slice(1, 3);
     const seed = +s.slice(3);
-    let symbols;
+    let symbols = '';
     let scopeText;
     if (mode === 'en') {
       if (scope < 1 || scope > 14) return null;
       symbols = MODES.en.before[LETTER_LESSONS[scope - 1].id];
       scopeText = scope >= 14 ? '全部 26 個字母' : `第 1～${scope} 關的字母（${symbols.toUpperCase().split('').join(' ')}）`;
-    } else {
+    } else if (mode === 'zh') {
       const sc = ZH_SCOPES.find(x => x.n === scope);
       if (!sc) return null;
       symbols = MODES.zh.before[sc.upTo];
+      scopeText = sc.title;
+    } else {
+      const sc = CN_SCOPES.find(x => x.n === scope);
+      if (!sc) return null;
       scopeText = sc.title;
     }
     return { code: s, mode, minutes, scope, seed, symbols, scopeText };
   }
 
   function makeCode(m, minutes, scope, seed) {
-    const d1 = m === 'en' ? minutes : minutes + 3;
+    const idx = Math.max(0, MINUTES[m].indexOf(+minutes));
     const sd = seed == null ? Math.floor(Math.random() * 1000) : seed;
-    return String(d1) + String(scope).padStart(2, '0') + String(sd).padStart(3, '0');
+    return String(BASE_DIGIT[m] + idx) + String(scope).padStart(2, '0') + String(sd).padStart(3, '0');
+  }
+
+  function zhTexts() { return window.PUPPY_ZH_TEXTS || { words: [], sentences: [], passages: [], punct: [] }; }
+
+  // 中文題目：把同一類的句子或短文洗牌後接起來，直到夠長
+  function cnText(kind, len, rnd) {
+    const r = rnd || Math.random;
+    const pool = (zhTexts()[kind] || []).slice();
+    if (!pool.length) return '';
+    if (kind === 'words') {
+      const out = [];
+      while (out.length < len) {
+        const w = pool[Math.floor(r() * pool.length)];
+        if (out[out.length - 1] !== w) out.push(w);
+      }
+      return out.join('、') + '。';
+    }
+    let out = '';
+    let bag = [];
+    let last = '';
+    while (out.length < len) {
+      if (!bag.length) {
+        bag = pool.slice();
+        for (let i = bag.length - 1; i > 0; i--) { const k = Math.floor(r() * (i + 1)); [bag[i], bag[k]] = [bag[k], bag[i]]; }
+        if (bag[0] === last && bag.length > 1) bag.push(bag.shift());
+      }
+      last = bag.shift();
+      out += last;
+    }
+    return out;
   }
 
   function testText(info) {
     // 同一組碼一定得到同一份題目（種子包含整組碼）
-    return makeRun(info.symbols, '', info.minutes * 220, seeded(parseInt(info.code, 10)));
+    const rnd = seeded(parseInt(info.code, 10));
+    if (info.mode === 'cn') return cnText(CN_SCOPES.find(x => x.n === info.scope).kind, info.minutes * 70, rnd);
+    return makeRun(info.symbols, '', info.minutes * (info.mode === 'zh' ? 120 : 220), rnd);
+  }
+
+  // 中文比對：打出來的字和題目用「最長共同子序列」對齊
+  // 回傳 { ok, miss, covered, hit:[題目第幾個字有打對] }
+  function cnCompare(target, typed) {
+    const t = Array.from(target);
+    const y = Array.from(typed);
+    const m = y.length;
+    const n = Math.min(t.length, m + 30);
+    if (!m) return { ok: 0, miss: 0, covered: 0, hit: [] };
+    const W = n + 1;
+    const dp = new Uint16Array((m + 1) * W);
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        dp[i * W + j] = y[i - 1] === t[j - 1] ? dp[(i - 1) * W + j - 1] + 1 : Math.max(dp[(i - 1) * W + j], dp[i * W + j - 1]);
+      }
+    }
+    // 找出打到題目的哪裡：對齊到最後一個打對的字，後面多打的字當成打錯的字
+    let bestJ = 0;
+    for (let j = 0; j <= n; j++) if (dp[m * W + j] > dp[m * W + bestJ]) bestJ = j;
+    const hit = [];
+    let i = m;
+    let j = bestJ;
+    let lastTyped = 0;
+    while (i > 0 && j > 0) {
+      if (y[i - 1] === t[j - 1] && dp[i * W + j] === dp[(i - 1) * W + j - 1] + 1) {
+        hit[j - 1] = true;
+        if (!lastTyped) lastTyped = i;
+        i--; j--;
+      } else if (dp[(i - 1) * W + j] >= dp[i * W + j - 1]) {
+        i--;
+      } else {
+        j--;
+      }
+    }
+    const ok = dp[m * W + bestJ];
+    const covered = Math.min(t.length, bestJ + (m - lastTyped));
+    const miss = Math.max(m, covered) - ok;
+    return { ok, miss, covered, hit };
   }
 
   function scoreOf(ok, miss) {
@@ -337,6 +431,7 @@
   function startLesson(lessonId) {
     if (/^Z/.test(lessonId)) mode = 'zh';
     else if (/^L/.test(lessonId)) mode = 'en';
+    else if (/^C/.test(lessonId)) mode = 'cn';
     let text;
     let title;
     let tip;
@@ -349,8 +444,10 @@
     } else {
       const lesson = M().lessons.find(l => l.id === lessonId);
       if (!lesson) return;
-      const symbols = M().before[lesson.id];
-      if (mode === 'en') {
+      const symbols = M().before[lesson.id] || '';
+      if (mode === 'cn') {
+        text = cnText(lesson.kind, { words: 14, sentences: 36, passages: 55, punct: 55 }[lesson.kind]);
+      } else if (mode === 'en') {
         const len = symbols.length <= 4 ? 30 : symbols.length <= 10 ? 40 : 52;
         text = makeText(symbols, lesson.review ? '' : lesson.add, len);
       } else {
@@ -365,6 +462,79 @@
     if (api.focus) api.focus(true);
     render();
     scrollTop();
+    focusInput();
+  }
+
+  function focusInput() {
+    const box = pane && pane.querySelector('#tyInput');
+    if (box && !box.disabled) { try { box.focus({ preventScroll: true }); } catch (e) { box.focus(); } }
+  }
+
+  // ── 中文打字：輸入框 ──────────────────────────────────────
+  let composing = false;
+  function cnEvaluate(value) {
+    if (!run || mode !== 'cn') return null;
+    const now = Date.now();
+    if (run.test && now < run.test.startAt) return null;
+    const typed = String(value).replace(/[\r\n]/g, '');
+    const fresh = typed.slice(run.typed ? run.typed.length : 0);
+    if (!run.started) { run.started = now; run.last = now; }
+    run.activeMs += Math.min(GAP_CAP_MS, now - run.last);
+    run.last = now;
+    let nb = '';
+    if (/[A-Za-z]/.test(fresh)) nb = '⚠ 打出英文字母了：請按一下 Shift，切換回中文（注音）。';
+    else if (HALF_PUNCT.test(fresh)) nb = '⚠ 這是半形符號，算打錯喔！請改用全形符號（例如 ，。？），看右邊的提示卡。';
+    if (nb) { banner = nb; renderBanner(); run.bannerAt = now; } else if (banner && now - (run.bannerAt || 0) > 4000) { banner = ''; renderBanner(); }
+    run.typed = typed;
+    const c = cnCompare(run.text.join(''), typed);
+    run.ok = c.ok;
+    run.miss = c.miss;
+    run.pos = c.covered;
+    run.errAt = {};
+    for (let i = 0; i < c.covered; i++) if (!c.hit[i]) run.errAt[i] = true;
+    run.recent = [];
+    for (let i = Math.max(0, c.covered - 20); i < c.covered; i++) run.recent.push(!!c.hit[i]);
+    // 速度不合理（貼上、語音、手寫輸入）：測驗 20 秒以後才判斷
+    const startedAt = run.test ? run.test.startAt : run.started;
+    const mins = (now - startedAt) / 60000;
+    if (mins > 1 / 3 && c.ok / mins > CN_FAST && !run.fastFlag) {
+      run.fastFlag = true;
+      run.mash += 1;
+      run.redUntil = now + RED_MS;
+      run.redWhy = '速度不太合理，請自己一個字一個字打';
+    }
+    if (!run.test && c.covered >= run.text.length) { finish(); return c; }
+    renderProgress(true);
+    return c;
+  }
+
+  function cnBlock(why) {
+    if (!run) return;
+    run.mash += 1;
+    today().mash += 1;
+    run.redUntil = Date.now() + RED_MS;
+    run.redWhy = why;
+    renderStatus();
+  }
+
+  function bindCnInput() {
+    const box = pane.querySelector('#tyInput');
+    if (!box) return;
+    box.addEventListener('compositionstart', () => { composing = true; });
+    box.addEventListener('compositionend', () => { composing = false; cnEvaluate(box.value); });
+    box.addEventListener('input', ev => {
+      if (ev.isComposing || composing) return;
+      if (ev.inputType && ev.inputType.indexOf('delete') === 0 && run) run.deletes = (run.deletes || 0) + 1;
+      cnEvaluate(box.value);
+    });
+    box.addEventListener('beforeinput', ev => {
+      if (ev.inputType === 'insertFromPaste' || ev.inputType === 'insertFromDrop') { ev.preventDefault(); cnBlock('不能用貼上，請自己打'); }
+    });
+    ['paste', 'drop'].forEach(t => box.addEventListener(t, ev => { ev.preventDefault(); cnBlock('不能用貼上，請自己打'); }));
+    box.addEventListener('keydown', ev => {
+      if (ev.key === 'Enter' && !ev.isComposing && ev.keyCode !== 229) ev.preventDefault();
+      ev.stopPropagation();
+    });
   }
 
   // 測驗：先到「準備」畫面，按 Enter 才倒數
@@ -440,6 +610,7 @@
       return 'start';
     }
     if (view !== 'play' || !run) return 'ignored';
+    if (mode === 'cn') return 'ignored';
     if (ev.ctrlKey || ev.altKey || ev.metaKey) return 'ignored';
     const now = Date.now();
     if (run.test && now < run.test.startAt) return 'ignored';
@@ -533,7 +704,7 @@
     const total = run.ok + run.miss;
     const acc = total ? Math.round(run.ok / total * 1000) / 10 : 100;
     const minutes = Math.max(run.activeMs, 1000) / 60000;
-    const rate = Math.round(mode === 'en' ? run.text.length / 5 / minutes : run.text.length / minutes);
+    const rate = Math.round(mode === 'en' ? run.text.length / 5 / minutes : mode === 'cn' ? run.ok / minutes : run.text.length / minutes);
     const stars = starsFor(acc, run.mash);
     d.ms += run.activeMs;
     d.lessons += 1;
@@ -562,12 +733,12 @@
     }
     if (stars === 0) note = '這一次有亂按，所以沒有星星。慢慢打、打對比較重要喔！';
     const weakHere = Object.keys(run.keyMiss).sort((a, b) => run.keyMiss[b] - run.keyMiss[a]).slice(0, 3);
-    lastResult = { id: run.id, mode, title: run.title, acc, rate, stars, xp, gotStars, note, weakHere, mash: run.mash, ms: run.activeMs };
+    lastResult = { id: run.id, mode, title: run.title, acc, rate, stars, xp, gotStars, note, weakHere, mash: run.mash, ms: run.activeMs, ok: run.ok, miss: run.miss };
     run = null;
     view = 'result';
     if (api.focus) api.focus(false);
     api.save();
-    if (xp > 0) api.award(xp, gotStars, 'typing', `${mode === 'en' ? '英打' : '注音'}練習：${lastResult.title}`);
+    if (xp > 0) api.award(xp, gotStars, 'typing', `${SUBJ[mode]}練習：${lastResult.title}`);
     render();
   }
 
@@ -663,6 +834,19 @@
     return `<svg class="ty-hands" viewBox="0 0 350 156" aria-hidden="true">${left}${right}</svg>`;
   }
 
+  // 全形標點的按法（微軟注音）。「、」「；」各版本可能不同，請在 Windows 上確認後再改這裡。
+  const PUNCT_KEYS = [
+    ['，', 'Shift ＋ ,'], ['。', 'Shift ＋ .'], ['？', 'Shift ＋ /'], ['！', 'Shift ＋ 1'], ['：', 'Shift ＋ ;'],
+    ['「', 'Shift ＋ ['], ['」', 'Shift ＋ ]'], ['（', 'Shift ＋ 9'], ['）', 'Shift ＋ 0'],
+    ['、', '符號表'], ['；', '符號表']
+  ];
+  const SUBJ = { en: '英打', zh: '注音鍵位', cn: '中文打字' };
+  function punctCardHtml() {
+    return `<div class="ty-punct"><b>全形標點怎麼打（微軟注音中文模式）</b>
+      <div class="ty-punct-grid">${PUNCT_KEYS.map(([c, k]) => `<span><i>${c}</i>${esc(k)}</span>`).join('')}</div>
+      <small>找不到的符號：按 Ctrl ＋ Alt ＋ ,（逗號）打開符號表，用滑鼠點選。</small></div>`;
+  }
+
   function homeHtml() {
     const t = data();
     const d = today();
@@ -674,7 +858,9 @@
     const nextI = unlockedIndex();
     const weak = nextI >= 2 ? weakKeys(upToSymbols(), 3) : [];
     const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches && !window.matchMedia('(pointer: fine)').matches;
-    const intro = mode === 'en'
+    const intro = mode === 'cn'
+      ? '請把輸入法切到<strong>微軟注音（中文）</strong>，把上面的字打進輸入框。打錯可以繼續往下打，最後一起算；標點符號要用<strong>全形</strong>（，。？），半形算錯。不能貼上。'
+      : mode === 'en'
       ? '手指放在基準鍵（左手 A S D F、右手 J K L ;），看著螢幕、不要看鍵盤。打錯不會往前跳，要打對才繼續。<strong>正確率比速度重要</strong>：95% 以上三顆星。'
       : '看到注音符號，就按鍵盤上對應的那個鍵。鍵盤上大大的字是注音，小小的字是英文字母。<strong>開著微軟注音或英文模式都可以練</strong>。正確率 95% 以上三顆星。';
     return `
@@ -683,7 +869,7 @@
           ${Object.values(MODES).map(m => `<button class="ty-mode ${m.id === mode ? 'on' : ''}" data-mode="${m.id}" role="tab" aria-selected="${m.id === mode}">${m.label}</button>`).join('')}
         </div>
         <button class="ty-test-btn" id="tyTestBtn">🏁 全班測驗／自己挑戰</button>
-        <div class="section-title" style="margin-top:12px;"><span>${mode === 'en' ? '⌨️ 英打練習' : 'ㄅ 注音鍵位練習'}</span><span class="ty-today-pill">今天有效練習 ${min} 分 ${sec} 秒</span></div>
+        <div class="section-title" style="margin-top:12px;"><span>${{ en: '⌨️ 英打練習', zh: 'ㄅ 注音鍵位練習', cn: '中 中文打字練習' }[mode]}</span><span class="ty-today-pill">今天有效練習 ${min} 分 ${sec} 秒</span></div>
         ${coarse ? '<p class="ty-warn">這台裝置看起來沒有接實體鍵盤。打字練習要用真的鍵盤，請接上鍵盤或改用電腦。</p>' : ''}
         <p class="section-sub">${intro}</p>
         ${mode === 'en' ? `<div class="ty-tracks">
@@ -702,19 +888,19 @@
               <span class="ty-ls">${'★'.repeat(st)}${'☆'.repeat(3 - st)}</span>
             </button>`;
           }).join('')}
-          ${nextI >= 2 ? `<button class="ty-lesson weak" data-lesson="weak"><span class="ty-ln">🎯</span><span class="ty-lt">加強練習${weak.length ? '：' + weak.map(x => x.k.toUpperCase()).join(' ') : ''}</span><span class="ty-ls">常錯的鍵</span></button>` : ''}
+          ${nextI >= 2 && mode !== 'cn' ? `<button class="ty-lesson weak" data-lesson="weak"><span class="ty-ln">🎯</span><span class="ty-lt">加強練習${weak.length ? '：' + weak.map(x => x.k.toUpperCase()).join(' ') : ''}</span><span class="ty-ls">常錯的鍵</span></button>` : ''}
         </div>
       </div>
       <div class="card-box">
-        <div class="section-title"><span>📋 今天的練習紀錄（${mode === 'en' ? '英打' : '注音'}）</span></div>
+        <div class="section-title"><span>📋 今天的練習紀錄（${SUBJ[mode]}）</span></div>
         <div class="ty-stats">
           <div><b>${min} 分 ${sec} 秒</b><span>有效練習時間</span></div>
           <div><b>${total ? acc + '%' : '—'}</b><span>正確率</span></div>
           <div><b>${d.lessons}</b><span>完成關卡</span></div>
           <div class="${d.mash ? 'bad' : ''}"><b>${d.mash}</b><span>亂按次數</span></div>
         </div>
-        <p class="section-sub" style="margin-top:12px;">哪些鍵最常打錯（紅色＝常錯，淺紅＝偶爾錯，綠色＝穩定）：</p>
-        ${keyboardHtml({ heat: t.keys })}
+        ${mode === 'cn' ? punctCardHtml() : `<p class="section-sub" style="margin-top:12px;">哪些鍵最常打錯（紅色＝常錯，淺紅＝偶爾錯，綠色＝穩定）：</p>
+        ${keyboardHtml({ heat: t.keys })}`}
         <p class="ty-teacher-link">老師請用 <a href="./teacher.html" target="_blank" rel="noopener">教師頁</a> 產生測驗碼、收成績。</p>
       </div>`;
   }
@@ -723,6 +909,10 @@
     let opts = `<option value="0">${label}</option>`;
     for (let i = 1; i <= max; i++) opts += `<option value="${i}" ${+val === i ? 'selected' : ''}>${fmt(i)}</option>`;
     return `<select id="${id}" class="ty-select" aria-label="${label}">${opts}</select>`;
+  }
+
+  function minuteOptions(m) {
+    return MINUTES[m].map((x, i) => `<option value="${x}" ${i === 1 && m !== 'en' ? 'selected' : ''}>${x} 分鐘</option>`).join('');
   }
 
   function setupHtml() {
@@ -754,17 +944,19 @@
             <div class="ty-self-row">
               <select id="tySelfMode" class="ty-select" aria-label="科目">
                 <option value="en">英打</option>
-                <option value="zh" ${mode === 'zh' ? 'selected' : ''}>注音</option>
+                <option value="zh" ${mode === 'zh' ? 'selected' : ''}>注音鍵位</option>
+                <option value="cn" ${mode === 'cn' ? 'selected' : ''}>中文打字</option>
               </select>
-              <select id="tySelfMin" class="ty-select" aria-label="時間">
-                <option value="1">1 分鐘</option><option value="2">2 分鐘</option><option value="3">3 分鐘</option>
-              </select>
+              <select id="tySelfMin" class="ty-select" aria-label="時間">${minuteOptions(mode)}</select>
             </div>
             <select id="tySelfScopeEn" class="ty-select ty-wide" aria-label="英打範圍" ${mode === 'zh' ? 'hidden' : ''}>
               ${LETTER_LESSONS.slice(0, 14).map((l, i) => `<option value="${i + 1}" ${i + 1 === enMax ? 'selected' : ''}>${i + 1 >= 14 ? '全部 26 個字母' : '考到第 ' + (i + 1) + ' 關（' + MODES.en.before[l.id].toUpperCase() + '）'}</option>`).join('')}
             </select>
             <select id="tySelfScopeZh" class="ty-select ty-wide" aria-label="注音範圍" ${mode === 'zh' ? '' : 'hidden'}>
               ${ZH_SCOPES.map(sc => `<option value="${sc.n}" ${zhDefault && sc.n === zhDefault.n ? 'selected' : ''}>${sc.title}</option>`).join('')}
+            </select>
+            <select id="tySelfScopeCn" class="ty-select ty-wide" aria-label="中文範圍" ${mode === 'cn' ? '' : 'hidden'}>
+              ${CN_SCOPES.map(sc => `<option value="${sc.n}">${sc.title}</option>`).join('')}
             </select>
             <button class="btn btn-orange" id="tySelfGo" style="width:100%;margin-top:8px;">開始挑戰</button>
           </div>
@@ -782,14 +974,16 @@
         <h2>${self ? '🙋 自己挑戰' : '👩‍🏫 全班測驗'}</h2>
         <div class="ty-ready-code">測驗碼 <b>${info.code}</b></div>
         <ul class="ty-ready-list">
-          <li>科目：<b>${info.mode === 'en' ? '英打' : '注音鍵位'}</b></li>
+          <li>科目：<b>${SUBJ[info.mode]}</b></li>
           <li>範圍：<b>${esc(info.scopeText)}</b></li>
           <li>時間：<b>${info.minutes} 分鐘</b>（時間到自動結束）</li>
           ${self ? '' : `<li>我是：<b>${who.g} 年級 ${who.c} 班 ${who.s} 號</b></li>`}
           ${rec ? `<li>這組測驗碼你已經測過 <b>${rec.n}</b> 次</li>` : ''}
           ${best ? `<li>個人最佳（同樣的時間和範圍）：<b>${best} 分</b></li>` : ''}
         </ul>
-        <p class="section-sub">題目不需要按空白鍵；每 5 個字之間的間隔只是方便看。打錯不會往前跳。<br>得分＝打對的字數 × 正確率。</p>
+        <p class="section-sub">${info.mode === 'cn'
+          ? '請先把輸入法切到<b>微軟注音（中文）</b>。打錯可以繼續往下打，最後一起算；標點要用全形，不能貼上。'
+          : '題目不需要按空白鍵；每 5 個字之間的間隔只是方便看。打錯不會往前跳。'}<br>得分＝打對的字數 × 正確率。</p>
         <button class="btn btn-green ty-start" id="tyStart">準備好了！按 Enter 開始</button>
         <button class="btn btn-soft" id="tyBack" style="margin-top:8px;">← 取消</button>
       </div>`;
@@ -803,7 +997,7 @@
       from = Math.floor(run.pos / TEST_WINDOW) * TEST_WINDOW;
       to = Math.min(n, from + TEST_WINDOW + 20);
     }
-    const grouped = !!run.test || mode === 'zh';
+    const grouped = mode !== 'cn' && (!!run.test || mode === 'zh');
     let html = '';
     for (let i = from; i < to; i++) {
       const c = run.text[i];
@@ -825,12 +1019,13 @@
           <button class="btn btn-soft" id="tyQuit">✕ 離開</button>
         </div>
         <div id="tyBanner" class="ty-banner" hidden></div>
-        <div class="ty-text${zh ? ' zh' : ''}" id="tyText">${textHtml()}</div>
+        <div class="ty-text${zh ? ' zh' : ''}${mode === 'cn' ? ' cn' : ''}" id="tyText">${textHtml()}</div>
         <div class="ty-progress"><div id="tyBar" style="width:0%"></div></div>
         <div id="tyFingerName" class="ty-fname"></div>
         <div id="tyCountdown" class="ty-countdown" hidden></div>
-        ${keyboardHtml()}
-        ${zh ? '' : handsHtml()}
+        ${mode === 'cn' ? `<div class="ty-cn-row">
+          <textarea id="tyInput" class="ty-input" rows="3" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="在這裡打字（微軟注音）" ${run.test ? 'disabled' : ''}></textarea>
+          ${punctCardHtml()}</div>` : keyboardHtml() + (zh ? '' : handsHtml())}
       </div>`;
   }
 
@@ -848,11 +1043,11 @@
         <p class="ty-note">${esc(r.note)}</p>
         <div class="ty-stats">
           <div><b>${r.acc}%</b><span>正確率</span></div>
-          <div><b>${r.rate}</b><span>${r.mode === 'en' ? '每分鐘字數' : '每分鐘符號數'}</span></div>
+          <div><b>${r.rate}</b><span>${r.mode === 'zh' ? '每分鐘符號數' : '每分鐘字數'}</span></div>
           <div><b>${sec} 秒</b><span>有效時間</span></div>
-          <div class="${r.mash ? 'bad' : ''}"><b>${r.mash}</b><span>亂按次數</span></div>
+          <div class="${r.mash ? 'bad' : ''}"><b>${r.mash}</b><span>${r.mode === 'cn' ? '可疑操作' : '亂按次數'}</span></div>
         </div>
-        ${r.weakHere.length ? `<p class="section-sub">這一關最常打錯：<strong>${r.weakHere.map(k => k === ' ' ? '空白鍵' : k.toUpperCase()).join('、')}</strong></p>` : '<p class="section-sub">這一關一個字都沒打錯，太厲害了！</p>'}
+        ${r.mode === 'cn' ? `<p class="section-sub">${r.miss ? `打對 ${r.ok} 字，打錯或漏打 ${r.miss} 字（紅色的字）。` : '一個字都沒打錯，太厲害了！'}</p>` : r.weakHere.length ? `<p class="section-sub">這一關最常打錯：<strong>${r.weakHere.map(k => k === ' ' ? '空白鍵' : k.toUpperCase()).join('、')}</strong></p>` : '<p class="section-sub">這一關一個字都沒打錯，太厲害了！</p>'}
         ${r.xp ? `<p class="section-sub">獲得 +${r.xp} 經驗值${r.gotStars ? `、+${r.gotStars}⭐` : ''}</p>` : ''}
         <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:14px;">
           <button class="btn btn-soft" data-lesson="${esc(r.id)}">🔁 再練一次</button>
@@ -886,9 +1081,9 @@
         ${r.self ? '' : `<div class="ty-qr">${qrSvg(r.qr)}</div><p class="section-sub">請把這個畫面留著，等老師用手機掃描 QR Code 收成績。</p>`}
         <div class="ty-stats">
           <div><b>${r.acc}%</b><span>正確率</span></div>
-          <div><b>${r.ok}</b><span>打對的${r.mode === 'en' ? '字' : '符號'}</span></div>
-          <div><b>${r.rate}</b><span>${r.mode === 'en' ? '每分鐘字數' : '每分鐘符號數'}</span></div>
-          <div class="${r.mash ? 'bad' : ''}"><b>${r.mash}</b><span>亂按次數</span></div>
+          <div><b>${r.ok}</b><span>打對的${r.mode === 'zh' ? '符號' : '字'}</span></div>
+          <div><b>${r.rate}</b><span>${r.mode === 'zh' ? '每分鐘符號數' : '每分鐘字數'}</span></div>
+          <div class="${r.mash ? 'bad' : ''}"><b>${r.mash}</b><span>${r.mode === 'cn' ? '可疑操作' : '亂按次數'}</span></div>
         </div>
         ${r.xp ? `<p class="section-sub">獲得 +${r.xp} 經驗值</p>` : ''}
         <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:10px;">
@@ -917,6 +1112,7 @@
     });
     if (view === 'testsetup') bindSetup();
     if (view === 'play') {
+      if (mode === 'cn') { bindCnInput(); focusInput(); }
       renderProgress(true);
       renderStatus();
       renderBanner();
@@ -942,10 +1138,14 @@
     const modeSel = pane.querySelector('#tySelfMode');
     const en = pane.querySelector('#tySelfScopeEn');
     const zh = pane.querySelector('#tySelfScopeZh');
-    modeSel.addEventListener('change', () => { en.hidden = modeSel.value !== 'en'; zh.hidden = modeSel.value !== 'zh'; });
+    const cn = pane.querySelector('#tySelfScopeCn');
+    modeSel.addEventListener('change', () => {
+      en.hidden = modeSel.value !== 'en'; zh.hidden = modeSel.value !== 'zh'; cn.hidden = modeSel.value !== 'cn';
+      pane.querySelector('#tySelfMin').innerHTML = minuteOptions(modeSel.value);
+    });
     pane.querySelector('#tySelfGo').addEventListener('click', () => {
       const m = modeSel.value;
-      const scope = +(m === 'en' ? en.value : zh.value);
+      const scope = +({ en, zh, cn }[m].value);
       prepareTest(makeCode(m, +pane.querySelector('#tySelfMin').value, scope), true);
     });
   }
@@ -973,6 +1173,8 @@
       if (cd) { cd.hidden = false; cd.textContent = Math.ceil((run.test.startAt - now) / 1000); }
     } else if (cd && !cd.hidden) {
       cd.hidden = true;
+      const box = pane.querySelector('#tyInput');
+      if (box && box.disabled) { box.disabled = false; focusInput(); }
     }
     const left = Math.max(0, run.test.endAt - Math.max(now, run.test.startAt));
     const tm = pane.querySelector('#tyTimer');
@@ -1009,6 +1211,12 @@
       }
     }
     const want = run.text[run.pos];
+    if (mode === 'cn') {
+      const fn = pane.querySelector('#tyFingerName');
+      if (fn) fn.textContent = want ? `打到這裡：「${want}」　已打對 ${run.ok} 字${run.miss ? `、錯 ${run.miss} 字` : ''}` : '';
+      renderStatus();
+      return;
+    }
     const phys = mode === 'zh' ? KEY_OF_ZH[want] : want;
     pane.querySelectorAll('.ty-key.next').forEach(k => k.classList.remove('next'));
     const keyEl = phys != null ? pane.querySelector(`.ty-key[data-k="${CSS.escape(phys)}"]`) : null;
@@ -1058,10 +1266,11 @@
     hide() { document.body.classList.remove('ty-playing'); if (view === 'play' && api.focus) api.focus(false); },
     isPlaying() { return view === 'play'; },
     // 給 teacher.html 用（同一套測驗碼）
-    parseCode, makeCode, ZH_SCOPES, LETTER_LESSONS, QR_KEY,
+    parseCode, makeCode, ZH_SCOPES, CN_SCOPES, MINUTES, LETTER_LESSONS, QR_KEY,
     // 自動測試用
     _t: {
       LETTER_LESSONS, ZH_LESSONS, FINGER_OF, LETTERS_BEFORE, ZH_OF_KEY, KEY_OF_ZH, CODE_KEY, MODES,
+      CN_LESSONS, cnText, cnCompare, cnEvaluate,
       makeText, makeRun, startLesson, handleKey, starsFor, unlockedIndex, parseCode, makeCode, testText, scoreOf, qrPayload,
       prepareTest, startTest, finishTest, common,
       run: () => run, result: () => lastResult, view: () => view, status, quit, data,

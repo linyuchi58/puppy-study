@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.6.0';
-  const APP_BUILD = '20261116-2';
+  const APP_VERSION = 'v3.7.0';
+  const APP_BUILD = '20261116-3';
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
   const STORAGE_KEY = 'puppy_study_save_v2' + (SELFTEST ? '_selftest' : '');
@@ -2578,7 +2578,7 @@
         const pc = T.parseCode('203517');
         ok(pc && pc.mode === 'en' && pc.minutes === 2 && pc.scope === 3 && pc.symbols === 'fjdksl', '測驗碼 203517：英打 2 分鐘、考到第 3 關');
         const pz = T.parseCode('603123');
-        ok(pz && pz.mode === 'zh' && pz.minutes === 3 && pz.scope === 3 && T.parseCode('700000') === null && T.parseCode('215000') === null && T.parseCode('12345') === null, '注音測驗碼可以解析，錯的碼會被擋下');
+        ok(pz && pz.mode === 'zh' && pz.minutes === 5 && pz.scope === 3 && T.parseCode('700000') === null && T.parseCode('215000') === null && T.parseCode('12345') === null, '注音鍵位測驗碼（2／3／5 分鐘）可以解析，錯的碼會被擋下');
         ok(T.testText(pc) === T.testText(T.parseCode('203517')) && T.testText(pc) !== T.testText(T.parseCode('203518')) && !/\s/.test(T.testText(pc)) && /^[fjdksl]+$/.test(T.testText(pc)), '同一組碼題目一模一樣、沒有空白、只考範圍內的字母');
         ok(T.scoreOf(100, 0) === 100 && T.scoreOf(90, 10) === 81 && T.scoreOf(0, 0) === 0, '得分＝打對字數×正確率');
         T.common().who = { g: 0, c: 0, s: 0 };
@@ -2607,7 +2607,7 @@
         ok(T.result().attempt === 2 && T.result().xp === 0, '同一組碼第 2 次：次數變 2、沒有經驗值');
         let selfXp = 0;
         for (let i = 0; i < 4; i++) {
-          T.prepareTest(T.makeCode('zh', 1, 1), true);
+          T.prepareTest(T.makeCode('zh', 2, 1), true);
           T.startTest();
           T.setRun({ test: Object.assign(T.run().test, { startAt: Date.now() - 1 }) });
           zkey(codeOf(T.run().text[0]));
@@ -2615,6 +2615,46 @@
           selfXp += T.result().xp;
         }
         ok(T.result().self && T.result().mode === 'zh' && selfXp === 9, '自己挑戰（注音）：每天前 3 次各 +3 經驗值，實際 ' + selfXp);
+        // 中文打字（v3.7.0）
+        const ZT = window.PUPPY_ZH_TEXTS;
+        ok(ZT && ZT.sentences.length >= 30 && ZT.passages.length >= 15 && ZT.punct.length >= 10 && !/[A-Za-z0-9,.;:?!()]/.test([].concat(ZT.words, ZT.sentences, ZT.passages, ZT.punct).join('')), '中文題目載入了，而且沒有半形字元');
+        const cc = T.parseCode('903042');
+        ok(cc && cc.mode === 'cn' && cc.minutes === 8 && cc.scope === 3 && T.parseCode('704000') === null && T.parseCode('701000').minutes === 3 && T.parseCode('801000').minutes === 5, '中文打字測驗碼：7／8／9＝3／5／8 分鐘，難度 1～3');
+        ok(T.testText(cc) === T.testText(T.parseCode('903042')) && T.testText(cc).length >= 560 && /[「」：；（）]/.test(T.testText(cc)), '同一組碼中文題目一樣、夠長、標點題有特殊標點');
+        let cmp = T.cnCompare('今天天氣很好，我們去公園。', '今天天氣很好，我們去公園。');
+        ok(cmp.ok === 13 && cmp.miss === 0 && cmp.covered === 13, '中文比對：全對');
+        cmp = T.cnCompare('今天天氣很好，我們去公園。', '今天天器很好，我們');
+        ok(cmp.ok === 8 && cmp.miss === 1 && cmp.covered === 9 && !cmp.hit[3], '中文比對：同音錯字算錯一個，後面繼續算對');
+        cmp = T.cnCompare('今天天氣很好，我們去公園。', '今天天氣很好我們');
+        ok(cmp.ok === 8 && cmp.miss === 1 && !cmp.hit[6], '中文比對：漏打標點算錯一個');
+        cmp = T.cnCompare('今天天氣很好，我們去公園。', '今天天氣很好,我們');
+        ok(cmp.ok === 8 && cmp.miss === 1, '中文比對：半形逗號算錯');
+        state.chinese = {};
+        T.startLesson('C02');
+        ok(T.view() === 'play' && T.run() && document.querySelector('#tyInput') !== null, '中文打字練習有輸入框');
+        const tgt = T.run().text.join('');
+        T.cnEvaluate(tgt.slice(0, 5) + ',');
+        ok(/半形/.test(document.querySelector('#tyBanner').textContent), '打半形標點會跳出提醒');
+        T.cnEvaluate(tgt.slice(0, 5) + 'abc');
+        ok(/英文字母/.test(document.querySelector('#tyBanner').textContent), '打出英文字母會提醒切回中文');
+        T.cnEvaluate(tgt);
+        ok(T.view() === 'result' && T.result().mode === 'cn' && state.chinese.prog.C02 >= 1 && T.unlockedIndex('cn') === 1 || (T.result() && T.result().mode === 'cn' && state.chinese.prog.C02 >= 1), '中文練習打完自動過關，紀錄存在 state.chinese');
+        T.common().who = { g: 4, c: 3, s: 12 };
+        T.prepareTest('701123', false);
+        T.startTest();
+        ok(document.querySelector('#tyInput').disabled === true && T.cnEvaluate('今天') === null, '倒數時輸入框鎖住、不計分');
+        T.setRun({ test: Object.assign(T.run().test, { startAt: Date.now() - 30000 }) });
+        const tt = T.run().text.join('');
+        T.cnEvaluate(tt.slice(0, 20) + '錯' + tt.slice(21, 30));
+        T.finishTest();
+        const cr = T.result();
+        ok(cr.mode === 'cn' && cr.ok === 29 && cr.miss === 1 && cr.score === 28 && cr.qr.split('|')[1] === '701123', '中文測驗：29 對 1 錯得 28 分，QR 有測驗碼');
+        T.prepareTest('701123', false);
+        T.startTest();
+        T.setRun({ test: Object.assign(T.run().test, { startAt: Date.now() - 30000 }) });
+        T.cnEvaluate(T.run().text.join('').slice(0, 80));
+        ok(T.run().mash === 1 && /速度/.test(T.status()[1]), '30 秒打 80 字（一分鐘 160 字）視為可疑');
+        T.quit();
         T.quit();
       }
       // 每日自動備份
