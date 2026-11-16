@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.5.0';
-  const APP_BUILD = '20261116-1';
+  const APP_VERSION = 'v3.6.0';
+  const APP_BUILD = '20261116-2';
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
   const STORAGE_KEY = 'puppy_study_save_v2' + (SELFTEST ? '_selftest' : '');
@@ -2560,6 +2560,62 @@
         playAll('L01');
         ok(T.result().xp === 3 && state.stars === s0 + 3, '重玩已經三顆星的關卡：+3 經驗值、沒有星星');
         ok(state.typing.days[todayStr()].lessons === 2 && state.typing.keys.f[0] > 0, '今天的練習紀錄和按鍵統計有記下來');
+        // 注音鍵位（v3.6.0）
+        const Z = T.ZH_OF_KEY;
+        ok(Z['1'] === 'ㄅ' && Z.q === 'ㄆ' && Z.u === 'ㄧ' && Z['-'] === 'ㄦ' && Z['6'] === 'ˊ' && Z['3'] === 'ˇ' && Z['/'] === 'ㄥ' && Object.keys(Z).length === 41, '注音鍵位是標準大千式（41 個鍵）');
+        ok(Array.from(T.MODES.zh.before.Z11).length === 41, '注音 11 關剛好教完 37 個符號和 4 個聲調');
+        state.zhuyin = {};
+        const zkey = (code) => T.handleKey({ key: 'Process', code, keyCode: 229, preventDefault() {}, getModifierState() { return false; } });
+        const codeOf = ch => { const k = T.KEY_OF_ZH[ch]; return Object.keys(T.CODE_KEY).find(c => T.CODE_KEY[c] === k); };
+        T.startLesson('Z01');
+        ok(/^[ㄅㄆㄇㄈ]+$/.test(T.run().text.join('')), '注音第 1 關只出現 ㄅㄆㄇㄈ、沒有空白');
+        const zw = T.run().text[0];
+        ok(zkey(codeOf(zw === 'ㄅ' ? 'ㄆ' : 'ㄅ')) === 'miss' && zkey(codeOf(zw)) === 'ok', '開著微軟注音（按鍵代碼）也能判斷對錯');
+        let zg = 0;
+        while (T.run() && zg++ < 500) zkey(codeOf(T.run().text[T.run().pos]));
+        ok(T.result().mode === 'zh' && state.zhuyin.prog.Z01 >= 2 && T.unlockedIndex('zh') === 1 && state.typing.prog.L01 === 3, '注音過關紀錄另外存，不會蓋到英打');
+        // 全班測驗與自己挑戰（v3.6.0）
+        const pc = T.parseCode('203517');
+        ok(pc && pc.mode === 'en' && pc.minutes === 2 && pc.scope === 3 && pc.symbols === 'fjdksl', '測驗碼 203517：英打 2 分鐘、考到第 3 關');
+        const pz = T.parseCode('603123');
+        ok(pz && pz.mode === 'zh' && pz.minutes === 3 && pz.scope === 3 && T.parseCode('700000') === null && T.parseCode('215000') === null && T.parseCode('12345') === null, '注音測驗碼可以解析，錯的碼會被擋下');
+        ok(T.testText(pc) === T.testText(T.parseCode('203517')) && T.testText(pc) !== T.testText(T.parseCode('203518')) && !/\s/.test(T.testText(pc)) && /^[fjdksl]+$/.test(T.testText(pc)), '同一組碼題目一模一樣、沒有空白、只考範圍內的字母');
+        ok(T.scoreOf(100, 0) === 100 && T.scoreOf(90, 10) === 81 && T.scoreOf(0, 0) === 0, '得分＝打對字數×正確率');
+        T.common().who = { g: 0, c: 0, s: 0 };
+        ok(T.prepareTest('101001', false) === false && T.view() === 'testsetup', '全班測驗沒選年級班級座號不能開始');
+        T.common().who = { g: 4, c: 3, s: 12 };
+        T.setMode('en');
+        ok(T.prepareTest('101001', false) === true && T.view() === 'ready', '選好座號、輸入測驗碼後進入準備畫面');
+        ok(T.handleKey({ key: 'Enter', preventDefault() {} }) === 'start' && T.view() === 'play' && T.run().test.attempt === 1, '按 Enter 開始，記第 1 次');
+        ok(key(T.run().text[0]) === 'ignored', '倒數 3 秒內按鍵不算');
+        T.setRun({ test: Object.assign(T.run().test, { startAt: Date.now() - 1 }) });
+        for (let i = 0; i < 18; i++) key(T.run().text[T.run().pos]);
+        key(T.run().text[T.run().pos] === 'f' ? 'j' : 'f');
+        key(T.run().text[T.run().pos]);
+        const s1 = state.stars;
+        T.finishTest();
+        const tr = T.result();
+        ok(tr.test && tr.ok === 19 && tr.miss === 1 && tr.score === 18 && tr.xp === 4 && state.stars === s1, '測驗結束：19 對 1 錯得 18 分、+4 經驗值、不給星星');
+        const parts = tr.qr.split('|');
+        ok(parts.length === 15 && parts[0] === 'PZT1' && parts[1] === '101001' && parts[2] === '4' && parts[3] === '3' && parts[4] === '12' && parts[5] === '1' && parts[6] === '18', 'QR 內容有測驗碼、年班座號、次數、得分');
+        ok(window.PuppyStamp.code(T.QR_KEY || window.PuppyTyping.QR_KEY, parts.slice(0, 14).join('|')) === parts[14], 'QR 檢查碼正確（老師端可以驗證）');
+        T.prepareTest('101001', false);
+        T.startTest();
+        T.setRun({ test: Object.assign(T.run().test, { startAt: Date.now() - 1 }) });
+        key(T.run().text[0]);
+        T.finishTest();
+        ok(T.result().attempt === 2 && T.result().xp === 0, '同一組碼第 2 次：次數變 2、沒有經驗值');
+        let selfXp = 0;
+        for (let i = 0; i < 4; i++) {
+          T.prepareTest(T.makeCode('zh', 1, 1), true);
+          T.startTest();
+          T.setRun({ test: Object.assign(T.run().test, { startAt: Date.now() - 1 }) });
+          zkey(codeOf(T.run().text[0]));
+          T.finishTest();
+          selfXp += T.result().xp;
+        }
+        ok(T.result().self && T.result().mode === 'zh' && selfXp === 9, '自己挑戰（注音）：每天前 3 次各 +3 經驗值，實際 ' + selfXp);
+        T.quit();
       }
       // 每日自動備份
       keys.forEach(k => { try { localStorage.removeItem(k); } catch (e) { /* 忽略 */ } });
