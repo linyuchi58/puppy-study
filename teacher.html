@@ -42,6 +42,8 @@
     .live div.dup { color: var(--muted); }
     .live div.bad { background: var(--red-l); color: var(--red); }
     .live b { font-size: 1.2rem; }
+    .photo-btn { display: inline-block; padding: 10px 16px; border: 2px solid #2fa86a; border-radius: 14px; color: #1f7a4c; font-weight: 700; cursor: pointer; background: #fff; }
+    .diag { font-size: 12px; color: #8a7a6a; margin: 4px 2px; word-break: break-all; }
     tr.hit td { background: #fff4c2; }
     .scan-view video { transform-origin: center center; transition: transform .15s; }
     .scan-count { text-align: center; font-weight: 800; color: var(--green-d); min-height: 1.4em; }
@@ -120,6 +122,7 @@
         <div class="row">
           <button class="main" id="camGo">📷 開啟相機</button>
           <button id="camStop" hidden>停止相機</button>
+          <label class="photo-btn" id="photoBtn">📸 拍照收成績<input type="file" accept="image/*" capture="environment" id="photoIn" multiple hidden></label>
         </div>
         <div class="zoom-row" id="zoomRow" hidden>
           <span>拉近</span>
@@ -129,6 +132,7 @@
         <canvas id="canvas" hidden></canvas>
         <div class="flash" id="flash"></div>
         <div class="live" id="live"></div>
+        <div class="diag" id="diag"></div>
         <details>
           <summary>相機不能用？手動貼上 QR 內容</summary>
           <div class="row"><input id="manual" style="flex:1;" placeholder="PZT1|..."><button id="manualGo">加入</button></div>
@@ -170,10 +174,10 @@
     </section>
   </main>
 
-  <script src="./stamp.js?v=20261117-9"></script>
-  <script src="./typing.js?v=20261117-9"></script>
-  <script src="./jsqr.js?v=20261117-9"></script>
-  <script src="./zxing_reader.js?v=20261117-9"></script>
+  <script src="./stamp.js?v=20261117-10"></script>
+  <script src="./typing.js?v=20261117-10"></script>
+  <script src="./jsqr.js?v=20261117-10"></script>
+  <script src="./zxing_reader.js?v=20261117-10"></script>
   <script>
   (function () {
     'use strict';
@@ -426,7 +430,7 @@
     try {
       if (window.ZXingWASM && window.WebAssembly) {
         window.ZXingWASM.prepareZXingModule({
-          overrides: { locateFile: (path, prefix) => (path.endsWith('.wasm') ? './zxing_reader.wasm?v=20261117-9' : prefix + path) },
+          overrides: { locateFile: (path, prefix) => (path.endsWith('.wasm') ? './zxing_reader.wasm?v=20261117-10' : prefix + path) },
           fireImmediately: true
         }).then(() => { zx = window.ZXingWASM; }).catch(() => { zx = null; });
       }
@@ -600,6 +604,47 @@
       }
       return out;
     }
+    // v3.8.3：三種方法輪流認（zxing 原尺寸、zxing 縮小、手機內建），某一種出錯不會整個停掉；
+    // 一張卡住超過 1.5 秒就放棄那一張；鏡頭下方小字顯示掃描狀態，方便查問題
+    const diag = { frames: 0, errs: 0, lastErr: '', found: 0, since: Date.now() };
+    const zxErr = { n: 0 };
+    function withTimeout(p, ms) { return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('逾時')), ms))]); }
+    function smallCopy(f, maxW) {
+      if (f.w <= maxW) return null;
+      const c = document.createElement('canvas');
+      c.width = maxW; c.height = Math.round(f.h * maxW / f.w);
+      const ctx = c.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(f.c, 0, 0, c.width, c.height);
+      return ctx.getImageData(0, 0, c.width, c.height);
+    }
+    async function decodeFrame(f) {
+      const plan = [];
+      if (zx) plan.push('zx', 'zxs');
+      if (detector) plan.push('nat');
+      if (!plan.length) return jsqrScan(f);
+      const m = plan[frameN % plan.length];
+      try {
+        let texts;
+        if (m === 'nat') texts = (await withTimeout(detector.detect(f.c), 1500)).map(b => b.rawValue);
+        else {
+          const img = m === 'zxs' ? (smallCopy(f, 640) || f.ctx.getImageData(0, 0, f.w, f.h)) : f.ctx.getImageData(0, 0, f.w, f.h);
+          texts = (await withTimeout(zx.readBarcodes(img, ZX_OPT), 1500)).filter(r => r.isValid).map(r => r.text);
+          zxErr.n = 0;
+        }
+        return texts;
+      } catch (e) {
+        diag.errs++;
+        diag.lastErr = m + '：' + String((e && e.message) || e).slice(0, 40);
+        if (m !== 'nat' && ++zxErr.n >= 5) zx = null;        // zxing 連續出錯 5 次才停用
+        if (m === 'nat' && /NotSupported|Invalid/i.test(String(e && e.name))) detector = null;
+        return jsqrScan(f);
+      }
+    }
+    function showDiag() {
+      const v = $('video');
+      const eng = [zx ? 'zxing' : '', detector ? '手機內建' : '', !zx && !detector ? 'jsQR' : ''].filter(Boolean).join('＋');
+      $('diag').textContent = `掃描中｜${eng}｜畫面 ${v.videoWidth}×${v.videoHeight}｜已看 ${diag.frames} 張｜認到 ${diag.found}` + (diag.errs ? `｜錯誤 ${diag.errs}（${diag.lastErr}）` : '');
+    }
     async function tick() {
       const v = $('video');
       if (!stream) return;
@@ -608,27 +653,50 @@
         frameN++;
         try {
           const f = grabFrame();
-          let texts = [];
-          let done = false;
-          if (zx) {
-            try {
-              const img = f.ctx.getImageData(0, 0, f.w, f.h);
-              texts = (await zx.readBarcodes(img, ZX_OPT)).filter(r => r.isValid).map(r => r.text);
-              done = true;
-            } catch (e) { zx = null; }
-          }
-          if (!done && detector) {
-            try { texts = (await detector.detect(f.c)).map(b => b.rawValue); done = true; } catch (e) { detector = null; }
-          }
-          if (!done) texts = jsqrScan(f);
-          if (texts.length) handleFound(texts);
-        } catch (e) { /* 忽略這一張 */ }
+          const texts = await decodeFrame(f);
+          diag.frames++;
+          if (texts.length) { diag.found += texts.length; handleFound(texts); }
+        } catch (e) { diag.errs++; diag.lastErr = String((e && e.message) || e).slice(0, 40); }
         busy = false;
       }
+      if (Date.now() - diag.since > 500) { diag.since = Date.now(); try { showDiag(); } catch (e) { /* 忽略 */ } }
       raf = requestAnimationFrame(tick);
     }
     $('camGo').onclick = () => { unlockSound(); startCam().then(() => { try { $('scanWrap').scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) { /* 忽略 */ } }); };
     $('camStop').onclick = stopCam;
+    // v3.8.3：拍照收成績（用手機本來的相機拍一張，再從照片裡找 QR；即時相機掃不到時的備用方法）
+    async function decodeImageAll(src, W, H) {
+      const found = new Set();
+      for (const maxW of [1600, 900]) {
+        const sc = Math.min(1, maxW / W);
+        const c = document.createElement('canvas');
+        c.width = Math.round(W * sc); c.height = Math.round(H * sc);
+        const ctx = c.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(src, 0, 0, c.width, c.height);
+        const f = { c, ctx, w: c.width, h: c.height };
+        try { if (zx) (await zx.readBarcodes(ctx.getImageData(0, 0, f.w, f.h), ZX_OPT)).filter(r => r.isValid).forEach(r => found.add(r.text)); } catch (e) { /* 換下一種 */ }
+        try { if (detector) (await detector.detect(c)).forEach(b => found.add(b.rawValue)); } catch (e) { /* 換下一種 */ }
+        if (!zx && !detector) jsqrScan(f).forEach(t => found.add(t));
+        if (found.size) break;
+      }
+      return [...found];
+    }
+    async function photoFiles(files) {
+      unlockSound();
+      let all = [];
+      for (const file of files) {
+        try {
+          const url = URL.createObjectURL(file);
+          const im = new Image();
+          await new Promise((ok2, no) => { im.onload = ok2; im.onerror = no; im.src = url; });
+          all = all.concat(await decodeImageAll(im, im.naturalWidth, im.naturalHeight));
+          URL.revokeObjectURL(url);
+        } catch (e) { /* 這張讀不了 */ }
+      }
+      if (all.length) { seen.clear(); handleFound(all); }
+      else { flash(false, '這張照片找不到 QR Code，請靠近一點、對準後再拍一次'); ding(false); }
+    }
+    $('photoIn').onchange = e => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) photoFiles(fs); };
 
     renderTable();
     renderRecent();
@@ -641,7 +709,7 @@
     if (recentCodes().length) showCode(recentCodes()[0]);
     // 記住上次停在哪一頁（老師在收成績時重新整理，不會跳回產生測驗碼）
     try { if (location.hash === '#collect' || localStorage.getItem(STORE + '.tab') === 'collect') showTab('collect'); } catch (e) { /* 忽略 */ }
-    window.PuppyTeacher = { addPayload, rows: () => rows, csvText, makeNew, renderTable, handleFound, jsqrScan, setZoom, engine: () => (zx ? 'zxing' : detector ? 'native' : 'jsqr') };
+    window.PuppyTeacher = { photoFiles, addPayload, rows: () => rows, csvText, makeNew, renderTable, handleFound, jsqrScan, setZoom, engine: () => (zx ? 'zxing' : detector ? 'native' : 'jsqr') };
 
     // ── 自動測試（網址加 ?apptest=1）──
     if (/[?&]apptest=1/.test(location.search)) {
