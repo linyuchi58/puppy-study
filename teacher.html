@@ -31,9 +31,18 @@
     .scan-wrap { position: relative; max-width: 420px; margin: 8px auto; }
     video { width: 100%; border-radius: 14px; background: #222; display: block; }
     .zoom-row { display: flex; gap: 6px; align-items: center; justify-content: center; margin: 6px 0; font-weight: 800; }
-    .zoom-row button { min-width: 54px; min-height: 48px; font-size: 1.15rem; padding: 4px 8px; }
+    .zoom-row span { white-space: nowrap; }
+    .zoom-row button { min-width: 50px; min-height: 48px; font-size: 1.15rem; padding: 4px 8px; }
     .zoom-row button.on { background: var(--green); color: #fff; }
     .scan-view { overflow: hidden; border-radius: 14px; background: #222; }
+    .scan-view video { height: 34vh; max-height: 300px; object-fit: cover; }   /* v3.8.2：鏡頭畫面矮一點，不用往上捲 */
+    .live { display: grid; gap: 4px; margin: 6px 0; }
+    .live div { display: flex; justify-content: space-between; gap: 8px; padding: 6px 10px; border-radius: 10px; background: #f6f1eb; font-weight: 800; }
+    .live div.new { background: var(--green-l); color: var(--green-d); }
+    .live div.dup { color: var(--muted); }
+    .live div.bad { background: var(--red-l); color: var(--red); }
+    .live b { font-size: 1.2rem; }
+    tr.hit td { background: #fff4c2; }
     .scan-view video { transform-origin: center center; transition: transform .15s; }
     .scan-count { text-align: center; font-weight: 800; color: var(--green-d); min-height: 1.4em; }
     .unlock-top { border-color: #f2b705; background: #fffbea; }
@@ -105,12 +114,6 @@
     </section>
 
     <section id="paneCollect" hidden>
-      <div class="card noprint unlock-top">
-        <h2>🔓 解除密碼</h2>
-        <div id="unlockBig" class="unlock-big">掃到第一位學生的 QR Code，這裡就會出現解除密碼</div>
-        <div class="row"><input id="lookCode" inputmode="numeric" maxlength="6" placeholder="輸入測驗碼查密碼" style="flex:1;min-width:0;"><button id="lookGo">查</button></div>
-        <p class="note">忘記測驗碼也沒關係：看任何一位學生畫面上「測驗碼」那 6 位數，輸入上面就查得到。</p>
-      </div>
       <div class="card noprint">
         <h2>掃描學生畫面上的 QR Code</h2>
         <p class="note" style="margin-top:0;">不用先輸入測驗碼，掃到什麼就收什麼；畫面裡同時有好幾個 QR Code 也會一起收（Android 手機最快，iPhone 會一個一個抓）。</p>
@@ -119,18 +122,26 @@
           <button id="camStop" hidden>停止相機</button>
         </div>
         <div class="zoom-row" id="zoomRow" hidden>
-          <span>鏡頭拉近</span>
+          <span>拉近</span>
           <button data-z="1" class="on">1×</button><button data-z="2">2×</button><button data-z="3">3×</button><button data-z="4">4×</button><button data-z="5">5×</button>
         </div>
         <div class="scan-wrap" id="scanWrap" hidden><div class="scan-view" id="scanView"><video id="video" playsinline muted></video></div><div class="scan-count" id="scanCount"></div></div>
         <canvas id="canvas" hidden></canvas>
         <div class="flash" id="flash"></div>
+        <div class="live" id="live"></div>
         <details>
           <summary>相機不能用？手動貼上 QR 內容</summary>
           <div class="row"><input id="manual" style="flex:1;" placeholder="PZT1|..."><button id="manualGo">加入</button></div>
         </details>
         <p class="note">相機畫面只在這支手機或電腦上處理，不會上傳；成績只存在這個瀏覽器裡，請記得下載 CSV 保存。</p>
       </div>
+      <div class="card noprint unlock-top">
+        <h2>🔓 解除密碼</h2>
+        <div id="unlockBig" class="unlock-big">掃到第一位學生的 QR Code，這裡就會出現解除密碼</div>
+        <div class="row"><input id="lookCode" inputmode="numeric" maxlength="6" placeholder="輸入測驗碼查密碼" style="flex:1;min-width:0;"><button id="lookGo">查</button></div>
+        <p class="note">忘記測驗碼也沒關係：看任何一位學生畫面上「測驗碼」那 6 位數，輸入上面就查得到。</p>
+      </div>
+
       <div class="card">
         <div class="row noprint">
           <label for="fCode">測驗碼</label>
@@ -145,7 +156,7 @@
         <p class="warn" id="missing"></p>
         <div class="tablewrap">
           <table>
-            <thead><tr><th>年級</th><th>班級</th><th>座號</th><th>得分</th><th>正確率</th><th>打對</th><th>打錯</th><th>每分鐘</th><th>第幾次</th><th>亂按</th><th>類型</th><th>時間</th></tr></thead>
+            <thead><tr><th>年級</th><th>班級</th><th>座號</th><th>得分</th><th>正確率</th><th>打對</th><th>打錯</th><th>每分鐘</th><th>第幾次</th><th>亂按</th><th>時間</th></tr></thead>
             <tbody id="tbody"></tbody>
           </table>
         </div>
@@ -159,10 +170,10 @@
     </section>
   </main>
 
-  <script src="./stamp.js?v=20261117-8"></script>
-  <script src="./typing.js?v=20261117-8"></script>
-  <script src="./jsqr.js?v=20261117-8"></script>
-  <script src="./zxing_reader.js?v=20261117-8"></script>
+  <script src="./stamp.js?v=20261117-9"></script>
+  <script src="./typing.js?v=20261117-9"></script>
+  <script src="./jsqr.js?v=20261117-9"></script>
+  <script src="./zxing_reader.js?v=20261117-9"></script>
   <script>
   (function () {
     'use strict';
@@ -282,9 +293,11 @@
       const n = i => +p[i] || 0;
       return [{ code: p[1], g: n(2), c: n(3), s: n(4), attempt: n(5), score: n(6), ok: n(7), miss: n(8), acc: n(9) / 10, rate: n(10), mash: n(11), self: p[12] === '1', when: p[13] }];
     }
+    let lastHit = null;
     function addPayload(text) {
       const [r, err] = parsePayload(text);
       if (!r) return [false, err];
+      lastHit = r;
       showUnlockFor(r.code);
       if (r.self) return [false, '這是「自己挑戰」的成績，不是全班測驗，沒有收進表格'];
       if (!(r.g && r.c && r.s)) return [false, '這筆沒有年級、班級或座號'];
@@ -292,8 +305,9 @@
       let msg;
       if (i >= 0) {
         const old = rows[i];
-        if (old.attempt === r.attempt && old.when === r.when && old.score === r.score) return [true, `${r.g} 年 ${r.c} 班 ${r.s} 號已經收過了（${r.score} 分）`, 'dup'];
-        if (r.attempt < old.attempt || (r.attempt === old.attempt && r.when < old.when)) return [true, `${r.g} 年 ${r.c} 班 ${r.s} 號：這是比較舊的成績，保留原本那筆`, 'old'];
+        // v3.8.2：已經收過的也把下面的表格切到這一組，老師才看得到
+        if (old.attempt === r.attempt && old.when === r.when && old.score === r.score) { renderTable(r.code, r.g + '-' + r.c); return [true, `${r.g} 年 ${r.c} 班 ${r.s} 號已經收過了（${r.score} 分）`, 'dup', r]; }
+        if (r.attempt < old.attempt || (r.attempt === old.attempt && r.when < old.when)) { renderTable(r.code, r.g + '-' + r.c); return [true, `${r.g} 年 ${r.c} 班 ${r.s} 號：這是比較舊的成績，保留原本那筆`, 'old', r]; }
         rows[i] = r;
         msg = `已更新 ${r.g} 年 ${r.c} 班 ${r.s} 號：${r.score} 分（第 ${r.attempt} 次）`;
       } else {
@@ -302,7 +316,7 @@
       }
       save();
       renderTable(r.code, r.g + '-' + r.c);
-      return [true, msg, 'new'];
+      return [true, msg, 'new', r];
     }
 
     function flash(ok, msg) {
@@ -339,9 +353,9 @@
       } else {
         ub.hidden = true;
       }
-      $('tbody').innerHTML = list.map(r => `<tr>
+      $('tbody').innerHTML = list.map(r => `<tr class="${lastHit && lastHit.code === r.code && lastHit.g === r.g && lastHit.c === r.c && lastHit.s === r.s ? 'hit' : ''}">
         <td>${r.g}</td><td>${r.c}</td><td>${r.s}</td><td><b>${r.score}</b></td><td>${r.acc}%</td><td>${r.ok}</td><td>${r.miss}</td><td>${r.rate}</td>
-        <td class="${r.attempt > 1 ? 'warn' : ''}">${r.attempt}</td><td class="${r.mash ? 'warn' : ''}">${r.mash}</td><td>全班測驗</td>
+        <td class="${r.attempt > 1 ? 'warn' : ''}">${r.attempt}</td><td class="${r.mash ? 'warn' : ''}">${r.mash}</td>
         <td>${esc(r.when.slice(4, 6) + '/' + r.when.slice(6, 8) + ' ' + r.when.slice(8, 10) + ':' + r.when.slice(10, 12))}</td></tr>`).join('');
       const sc = list.map(r => r.score);
       $('stats').innerHTML = sc.length ? [
@@ -412,7 +426,7 @@
     try {
       if (window.ZXingWASM && window.WebAssembly) {
         window.ZXingWASM.prepareZXingModule({
-          overrides: { locateFile: (path, prefix) => (path.endsWith('.wasm') ? './zxing_reader.wasm?v=20261117-8' : prefix + path) },
+          overrides: { locateFile: (path, prefix) => (path.endsWith('.wasm') ? './zxing_reader.wasm?v=20261117-9' : prefix + path) },
           fireImmediately: true
         }).then(() => { zx = window.ZXingWASM; }).catch(() => { zx = null; });
       }
@@ -473,30 +487,79 @@
       $('video').dataset.dz = String(digital);
     }
     document.querySelectorAll('#zoomRow button').forEach(b => { b.onclick = () => setZoom(+b.dataset.z); });
-    function beep(ok) {
+    // v3.8.2：收到新成績時唸出座號（例如「4號」）；手機不能唸的話，用清脆的「叮」
+    let ac = null;
+    let voiceOk = false;
+    function unlockSound() {
+      try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === 'suspended') ac.resume(); } catch (e) { ac = null; }
       try {
-        const ac = new (window.AudioContext || window.webkitAudioContext)();
-        const o = ac.createOscillator();
-        o.frequency.value = ok ? 880 : 220;
-        o.connect(ac.destination);
-        o.start();
-        o.stop(ac.currentTime + 0.12);
-        if (navigator.vibrate && (!navigator.userActivation || navigator.userActivation.hasBeenActive)) navigator.vibrate(ok ? 60 : [40, 40, 40]);
-      } catch (e) { /* 忽略 */ }
+        if ('speechSynthesis' in window) {
+          const u = new SpeechSynthesisUtterance(' ');
+          u.volume = 0;
+          window.speechSynthesis.speak(u);
+          voiceOk = true;
+        }
+      } catch (e) { voiceOk = false; }
     }
-    // 一次處理好幾個 QR 內容，回報這一輪收到幾筆
+    function ding(good) {
+      try {
+        ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+        const notes = good ? [1568, 2093] : [330];
+        notes.forEach((f, i) => {
+          const o = ac.createOscillator();
+          const g = ac.createGain();
+          o.type = 'triangle';
+          o.frequency.value = f;
+          const t = ac.currentTime + i * 0.09;
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(0.6, t + 0.01);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+          o.connect(g); g.connect(ac.destination);
+          o.start(t); o.stop(t + 0.2);
+        });
+      } catch (e) { /* 忽略 */ }
+      try { if (navigator.vibrate && (!navigator.userActivation || navigator.userActivation.hasBeenActive)) navigator.vibrate(good ? 60 : [40, 40, 40]); } catch (e) { /* 忽略 */ }
+    }
+    function say(text) {
+      try {
+        if (!voiceOk || !('speechSynthesis' in window)) return false;
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'zh-TW';
+        u.rate = 1.35;
+        const v = window.speechSynthesis.getVoices().find(x => /zh[-_]TW/i.test(x.lang)) || window.speechSynthesis.getVoices().find(x => /^zh/i.test(x.lang));
+        if (v) u.voice = v;
+        window.speechSynthesis.speak(u);
+        return true;
+      } catch (e) { return false; }
+    }
+    const liveList = [];
     function handleFound(texts) {
       const now = Date.now();
       const fresh = [...new Set(texts)].filter(t => t && now - (seen.get(t) || 0) > 3000);
       if (!fresh.length) return;
       fresh.forEach(t => seen.set(t, now));
       const res = fresh.map(t => addPayload(t));
-      const added = res.filter(r => r[0] && r[2] === 'new').length;
+      const news = res.filter(r => r[0] && r[2] === 'new');
       const msgs = res.map(r => r[1]);
       const allOk = res.every(r => r[0]);
-      flash(allOk, msgs.join('　'));
-      if (added) $('scanCount').textContent = `這一次收到 ${added} 筆，目前共 ${selectedAll().length} 筆`;
-      beep(added > 0);
+      const dupN = res.filter(r => r[0] && r[2] !== 'new').length;
+      const badN = res.filter(r => !r[0]).length;
+      flash(allOk, res.length === 1 ? msgs[0] : [news.length ? `✔ 新收 ${news.length} 筆` : '', dupN ? `收過 ${dupN} 筆` : '', badN ? `⚠ ${badN} 筆讀不懂` : ''].filter(Boolean).join('、'));
+      res.forEach(r => {
+        const x = r[3];
+        liveList.unshift({ cls: !r[0] ? 'bad' : r[2] === 'new' ? 'new' : 'dup',
+          left: x ? `${x.g} 年 ${x.c} 班 <b>${x.s} 號</b>` : esc(r[1]),
+          right: x ? (r[2] === 'new' ? `✔ ${x.score} 分` : `收過了（${x.score} 分）`) : '' });
+      });
+      liveList.splice(6);
+      $('live').innerHTML = liveList.map(l => `<div class="${l.cls}"><span>${l.left}</span><span>${l.right}</span></div>`).join('');
+      if (news.length) {
+        $('scanCount').textContent = `這一次收到 ${news.length} 筆，這一組目前共 ${selectedAll().length} 筆`;
+        // 能唸就唸座號（不另外放音效）；不能唸才「叮」
+        if (!say(news.map(r => r[3].s + '號').join('、'))) ding(true);
+      } else if (!allOk) {
+        ding(false);
+      }
     }
     function selectedAll() { return rows.filter(r => r.code === $('fCode').value); }
     // 把畫面中間（依放大倍數）畫到畫布上
@@ -564,7 +627,7 @@
       }
       raf = requestAnimationFrame(tick);
     }
-    $('camGo').onclick = startCam;
+    $('camGo').onclick = () => { unlockSound(); startCam().then(() => { try { $('scanWrap').scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) { /* 忽略 */ } }); };
     $('camStop').onclick = stopCam;
 
     renderTable();
@@ -573,6 +636,7 @@
       const latest = rows.slice().sort((a, b) => String(b.when).localeCompare(String(a.when)))[0];
       const first = (latest && latest.code) || recentCodes()[0];
       if (first) showUnlockFor(first);
+      if (latest) renderTable(latest.code, latest.g + '-' + latest.c);   // v3.8.2：打開時先顯示最近收到的那一組
     }
     if (recentCodes().length) showCode(recentCodes()[0]);
     // 記住上次停在哪一頁（老師在收成績時重新整理，不會跳回產生測驗碼）
@@ -641,6 +705,14 @@
         ok($('unlockBig').textContent.includes(PT.unlockCode('140217')), '掃到 QR 後上方大字顯示解除密碼');
         $('lookCode').value = '360221'; $('lookGo').onclick();
         ok($('unlockBig').textContent.includes(PT.unlockCode('360221')), '輸入測驗碼也能查解除密碼');
+        // v3.8.2：掃到「已經收過」的也要把表格切到那一組；鏡頭下方即時清單
+        const zA = PT._t.qrPayload({ code: '120211', g: 6, c: 1, s: 9, attempt: 1, ok: 30, miss: 3, mash: 0, self: false, when: '202611171255' });
+        const zB = PT._t.qrPayload({ code: '130317', g: 5, c: 2, s: 4, attempt: 1, ok: 3, miss: 3, mash: 0, self: false, when: '202611171250' });
+        handleFound([zB]); handleFound([zA]);
+        seen.clear();
+        handleFound([zB]);
+        ok($('fCode').value === '130317' && $('fClass').value === '5-2' && $('tbody').querySelector('tr.hit') && /4 號/.test($('live').textContent) && /收過了/.test($('live').textContent), '掃到已經收過的：表格切到那一組、標出那一列，鏡頭下方有清單');
+        ok($('paneCollect').firstElementChild.querySelector('#camGo') !== null, '收成績頁面最上面就是相機');
         try { localStorage.removeItem(STORE + '.recent'); localStorage.removeItem(STORE + '.tab'); } catch (e) { /* 忽略 */ }
       } catch (e) {
         fails.push('發生例外：' + e.message);
