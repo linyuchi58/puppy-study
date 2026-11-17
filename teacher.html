@@ -174,10 +174,10 @@
     </section>
   </main>
 
-  <script src="./stamp.js?v=20261117-10"></script>
-  <script src="./typing.js?v=20261117-10"></script>
-  <script src="./jsqr.js?v=20261117-10"></script>
-  <script src="./zxing_reader.js?v=20261117-10"></script>
+  <script src="./stamp.js?v=20261117-11"></script>
+  <script src="./typing.js?v=20261117-11"></script>
+  <script src="./jsqr.js?v=20261117-11"></script>
+  <script src="./zxing_reader.js?v=20261117-11"></script>
   <script>
   (function () {
     'use strict';
@@ -187,8 +187,13 @@
     const SUBJ = { en: '英打', zh: '注音鍵位', cn: '中文打字' };
     try { $('tVer').textContent = '　建置 ' + (document.querySelector('script[src*="typing.js"]').src.split('v=')[1] || ''); } catch (e) { /* 忽略 */ }
     let rows = [];
-    try { rows = JSON.parse(localStorage.getItem(STORE) || '[]'); if (!Array.isArray(rows)) rows = []; } catch (e) { rows = []; }
-    function save() { try { localStorage.setItem(STORE, JSON.stringify(rows)); } catch (e) { /* 忽略 */ } }
+    // v3.8.4：存檔裡如果有壞掉的資料（例如空的一筆），直接跳過，不讓整頁掛掉
+    function goodRow(r) { return !!(r && typeof r === 'object' && /^\d{6}$/.test(String(r.code)) && r.g && r.c && r.s && typeof r.when === 'string'); }
+    function cleanRows(a) { return (Array.isArray(a) ? a : []).filter(goodRow); }
+    let droppedOnLoad = 0;
+    try { const raw = JSON.parse(localStorage.getItem(STORE) || '[]'); rows = cleanRows(raw); droppedOnLoad = (Array.isArray(raw) ? raw.length : 0) - rows.length; } catch (e) { rows = []; }
+    function save() { rows = cleanRows(rows); try { localStorage.setItem(STORE, JSON.stringify(rows)); } catch (e) { /* 忽略 */ } }
+    if (droppedOnLoad > 0) save();
     function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
     // ── 分頁 ──
@@ -220,7 +225,7 @@
     }
     let lastCode = '';
     // 最近產生的測驗碼存在這個瀏覽器，重新整理也不會不見
-    function recentCodes() { try { const a = JSON.parse(localStorage.getItem(STORE + '.recent') || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+    function recentCodes() { try { const a = JSON.parse(localStorage.getItem(STORE + '.recent') || '[]'); return Array.isArray(a) ? a.filter(c => /^\d{6}$/.test(String(c))).map(String) : []; } catch (e) { return []; } }
     function renderRecent() {
       const a = recentCodes().filter(c => PT.parseCode(c));
       $('recentCard').hidden = !a.length;
@@ -305,6 +310,7 @@
       showUnlockFor(r.code);
       if (r.self) return [false, '這是「自己挑戰」的成績，不是全班測驗，沒有收進表格'];
       if (!(r.g && r.c && r.s)) return [false, '這筆沒有年級、班級或座號'];
+      rows = cleanRows(rows);
       const i = rows.findIndex(x => x.code === r.code && x.g === r.g && x.c === r.c && x.s === r.s);
       let msg;
       if (i >= 0) {
@@ -430,7 +436,7 @@
     try {
       if (window.ZXingWASM && window.WebAssembly) {
         window.ZXingWASM.prepareZXingModule({
-          overrides: { locateFile: (path, prefix) => (path.endsWith('.wasm') ? './zxing_reader.wasm?v=20261117-10' : prefix + path) },
+          overrides: { locateFile: (path, prefix) => (path.endsWith('.wasm') ? './zxing_reader.wasm?v=20261117-11' : prefix + path) },
           fireImmediately: true
         }).then(() => { zx = window.ZXingWASM; }).catch(() => { zx = null; });
       }
@@ -634,7 +640,7 @@
         return texts;
       } catch (e) {
         diag.errs++;
-        diag.lastErr = m + '：' + String((e && e.message) || e).slice(0, 40);
+        diag.lastErr = m + '：' + String((e && e.message) || e).slice(0, 90);
         if (m !== 'nat' && ++zxErr.n >= 5) zx = null;        // zxing 連續出錯 5 次才停用
         if (m === 'nat' && /NotSupported|Invalid/i.test(String(e && e.name))) detector = null;
         return jsqrScan(f);
@@ -656,7 +662,7 @@
           const texts = await decodeFrame(f);
           diag.frames++;
           if (texts.length) { diag.found += texts.length; handleFound(texts); }
-        } catch (e) { diag.errs++; diag.lastErr = String((e && e.message) || e).slice(0, 40); }
+        } catch (e) { diag.errs++; diag.lastErr = String((e && e.message) || e).slice(0, 90); }
         busy = false;
       }
       if (Date.now() - diag.since > 500) { diag.since = Date.now(); try { showDiag(); } catch (e) { /* 忽略 */ } }
@@ -698,15 +704,15 @@
     }
     $('photoIn').onchange = e => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) photoFiles(fs); };
 
-    renderTable();
-    renderRecent();
-    {
+    try { renderTable(); } catch (e) { /* 忽略 */ }
+    try { renderRecent(); } catch (e) { /* 忽略 */ }
+    try {
       const latest = rows.slice().sort((a, b) => String(b.when).localeCompare(String(a.when)))[0];
       const first = (latest && latest.code) || recentCodes()[0];
       if (first) showUnlockFor(first);
       if (latest) renderTable(latest.code, latest.g + '-' + latest.c);   // v3.8.2：打開時先顯示最近收到的那一組
-    }
-    if (recentCodes().length) showCode(recentCodes()[0]);
+    } catch (e) { /* 忽略 */ }
+    try { if (recentCodes().length) showCode(recentCodes()[0]); } catch (e) { /* 忽略 */ }
     // 記住上次停在哪一頁（老師在收成績時重新整理，不會跳回產生測驗碼）
     try { if (location.hash === '#collect' || localStorage.getItem(STORE + '.tab') === 'collect') showTab('collect'); } catch (e) { /* 忽略 */ }
     window.PuppyTeacher = { photoFiles, addPayload, rows: () => rows, csvText, makeNew, renderTable, handleFound, jsqrScan, setZoom, engine: () => (zx ? 'zxing' : detector ? 'native' : 'jsqr') };
@@ -781,6 +787,11 @@
         handleFound([zB]);
         ok($('fCode').value === '130317' && $('fClass').value === '5-2' && $('tbody').querySelector('tr.hit') && /4 號/.test($('live').textContent) && /收過了/.test($('live').textContent), '掃到已經收過的：表格切到那一組、標出那一列，鏡頭下方有清單');
         ok($('paneCollect').firstElementChild.querySelector('#camGo') !== null, '收成績頁面最上面就是相機');
+        // v3.8.4：存檔裡有壞掉的一筆（null）也不影響收成績
+        rows = [null, { code: 'x' }, ...rows];
+        const zC = PT._t.qrPayload({ code: '121416', g: 5, c: 4, s: 30, attempt: 1, ok: 120, miss: 8, mash: 0, self: false, when: '202611171354' });
+        seen.clear(); handleFound([zC]);
+        ok(rows.every(goodRow) && rows.some(r => r.code === '121416' && r.s === 30), '存檔裡有壞掉的資料，也能照常收成績');
         try { localStorage.removeItem(STORE + '.recent'); localStorage.removeItem(STORE + '.tab'); } catch (e) { /* 忽略 */ }
       } catch (e) {
         fails.push('發生例外：' + e.message);
