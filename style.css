@@ -820,3 +820,59 @@ body {
 
 /* ── v3.7.1 瀏覽人次（低調小字） ── */
 .site-foot { text-align: center; font-size: 0.72rem; color: var(--muted); opacity: 0.75; padding: 4px 0 8px; }
+
+/* ── v3.7.3 打字關卡：全部可選、已完成的變淡、預設停在總複習 ── */
+.ty-lesson { position: relative; transition: transform .12s, box-shadow .12s, border-color .12s; }
+.ty-lesson:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(74, 59, 50, 0.12); }
+.ty-lesson.todo { border-color: #e7cdb3; }
+.ty-lesson.done { background: #f3f6f2; border-color: #d9e6d9; border-style: dashed; color: #7c8a7c; }
+.ty-lesson.done .ty-lt { font-weight: 700; }
+.ty-lesson.done .ty-ls { color: #c7b26a; opacity: .75; }
+.ty-lesson.mastered { background: #f7f4e8; border-color: #e9dfb4; }
+.ty-lesson.review { border-width: 3px; }
+.ty-lesson.pick { background: var(--green-l); border: 3px solid var(--green); border-style: solid; color: var(--text); box-shadow: 0 0 0 4px rgba(47, 168, 107, 0.15); }
+.ty-lesson.pick.done { color: var(--text); }
+.ty-lesson:focus-visible { outline: 3px solid #3d8fd6; outline-offset: 2px; }
+.ty-ln { display: flex; align-items: center; gap: 6px; width: 100%; }
+.ty-badge { font-style: normal; font-size: 0.72rem; font-weight: 800; padding: 1px 8px; border-radius: 999px; background: #e3efe3; color: #4f7a4f; margin-left: auto; }
+.ty-lesson.mastered .ty-badge { background: #fbefc4; color: #8a6a12; }
+.ty-lesson.pick .ty-badge { background: var(--green); color: #fff; }
+
+/* ── v3.7.3 底部導覽列：字放大、每個功能有自己的顏色 ── */
+body { padding-bottom: 96px; }
+.bottom-nav {
+  gap: 8px; padding: 8px 12px; padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  border-top: none; border-radius: 22px 22px 0 0;
+  background: rgba(255, 252, 247, 0.97); backdrop-filter: blur(6px);
+  box-shadow: 0 -6px 20px rgba(74, 59, 50, 0.12);
+}
+.nav-tab {
+  --c: #2fa86b; --cl: #e3f6ea;
+  max-width: 240px; min-height: 62px; flex-direction: row; gap: 10px;
+  border: 2px solid transparent; border-radius: 18px; color: #6d5c50;
+  transition: background .15s, transform .15s, border-color .15s, box-shadow .15s;
+}
+.nav-tab[data-tab="english"] { --c: #2fa86b; --cl: #e3f6ea; }
+.nav-tab[data-tab="checkin"] { --c: #e07a2e; --cl: #fff0e2; }
+.nav-tab[data-tab="typing"] { --c: #3d8fd6; --cl: #e6f1fc; }
+.nav-tab[data-tab="dex"] { --c: #d65d93; --cl: #fdebf3; }
+.nav-tab[data-tab="transfer"] { --c: #7a6bd1; --cl: #efedfc; }
+.nav-ico {
+  width: 40px; height: 40px; flex: 0 0 40px; display: grid; place-items: center;
+  font-size: 1.35rem; border-radius: 14px; background: var(--cl); box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.06);
+}
+.nav-lbl { font-size: 1.12rem; font-weight: 900; letter-spacing: 0.5px; white-space: nowrap; }
+.nav-tab:hover { background: var(--cl); color: var(--c); transform: translateY(-2px); }
+.nav-tab.active { background: var(--c); color: #fff; border-color: var(--c); box-shadow: 0 6px 14px rgba(0, 0, 0, 0.16); }
+.nav-tab.active .nav-ico { background: rgba(255, 255, 255, 0.92); }
+.nav-tab:focus-visible { outline: 3px solid #3d8fd6; outline-offset: 2px; }
+@media (max-width: 900px) {
+  .nav-tab { flex-direction: column; gap: 2px; min-height: 64px; padding: 4px 2px; }
+  .nav-ico { width: 34px; height: 34px; flex-basis: 34px; font-size: 1.2rem; }
+  .nav-lbl { font-size: 0.86rem; letter-spacing: 0; }
+}
+@media (max-width: 420px) { .nav-lbl { font-size: 0.74rem; } .bottom-nav { gap: 4px; padding-left: 6px; padding-right: 6px; } }
+.ty-lesson.review { grid-column: 1 / -1; min-height: 64px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 4px 14px; padding: 10px 16px; }
+.ty-lesson.review .ty-ln { width: auto; font-size: 1.6rem; }
+.ty-lesson.review .ty-lt { font-size: 1.15rem; }
+.ty-lesson.review .ty-ln .ty-badge { font-size: 0.78rem; }

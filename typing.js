@@ -856,7 +856,11 @@
     const sec = Math.round((d.ms % 60000) / 1000);
     const lessons = M().lessons;
     const nextI = unlockedIndex();
-    const weak = nextI >= 2 ? weakKeys(upToSymbols(), 3) : [];
+    // v3.7.3：每一關都可以自己挑；英打和注音預設停在「總複習」，中文停在第一個還沒完成的關卡
+    const doneN = lessons.filter(l => (t.prog[l.id] || 0) > 0).length;
+    const firstTodo = lessons.findIndex(l => !(t.prog[l.id] || 0));
+    const pickI = mode === 'cn' ? (firstTodo < 0 ? 0 : firstTodo) : lessons.length - 1;
+    const weak = doneN >= 2 ? weakKeys(upToSymbols(), 3) : [];
     const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches && !window.matchMedia('(pointer: fine)').matches;
     const intro = mode === 'cn'
       ? '請把輸入法切到<strong>微軟注音（中文）</strong>，把上面的字打進輸入框。打錯可以繼續往下打，最後一起算；標點符號要用<strong>全形</strong>（，。？），半形算錯。不能貼上。'
@@ -879,16 +883,17 @@
           <div class="ty-track">❗ 鍵盤符號<small>之後開放</small></div>
         </div>` : ''}
         <div class="ty-grid">
-          ${lessons.map((l, i) => {
+          ${lessons.map((l, i) => [l, i]).sort((x, y) => (y[0].review ? 1 : 0) - (x[0].review ? 1 : 0)).map(([l, i]) => {
             const st = t.prog[l.id] || 0;
-            const open = i <= nextI;
-            return `<button class="ty-lesson ${open ? '' : 'locked'} ${i === nextI ? 'next' : ''}" data-lesson="${l.id}" ${open ? '' : 'disabled'}>
-              <span class="ty-ln">${i + 1}</span>
-              <span class="ty-lt">${open ? esc(l.title) : '🔒 ' + esc(l.title)}</span>
+            const cls = (st >= 3 ? 'done mastered' : st > 0 ? 'done' : 'todo') + (i === pickI ? ' pick' : '') + (l.review ? ' review' : '');
+            const badge = st >= 3 ? '👑 三顆星' : st > 0 ? '✓ 已完成' : (i === pickI ? '👉 從這裡開始' : '');
+            return `<button class="ty-lesson ${cls}" data-lesson="${l.id}" ${i === pickI ? 'data-pick="1"' : ''}>
+              <span class="ty-ln">${l.review ? '🏆' : i + 1}${badge ? `<em class="ty-badge">${badge}</em>` : ''}</span>
+              <span class="ty-lt">${esc(l.title)}</span>
               <span class="ty-ls">${'★'.repeat(st)}${'☆'.repeat(3 - st)}</span>
             </button>`;
           }).join('')}
-          ${nextI >= 2 && mode !== 'cn' ? `<button class="ty-lesson weak" data-lesson="weak"><span class="ty-ln">🎯</span><span class="ty-lt">加強練習${weak.length ? '：' + weak.map(x => x.k.toUpperCase()).join(' ') : ''}</span><span class="ty-ls">常錯的鍵</span></button>` : ''}
+          ${doneN >= 2 && mode !== 'cn' ? `<button class="ty-lesson weak" data-lesson="weak"><span class="ty-ln">🎯</span><span class="ty-lt">加強練習${weak.length ? '：' + weak.map(x => x.k.toUpperCase()).join(' ') : ''}</span><span class="ty-ls">常錯的鍵</span></button>` : ''}
         </div>
       </div>
       <div class="card-box">
@@ -1111,6 +1116,10 @@
       prepareTest(makeCode(i.mode, i.minutes, i.scope), true);
     });
     if (view === 'testsetup') bindSetup();
+    if (!html) {
+      const pick = pane.querySelector('[data-pick="1"]');
+      if (pick) { try { pick.focus({ preventScroll: true }); } catch (e) { pick.focus(); } }
+    }
     if (view === 'play') {
       if (mode === 'cn') { bindCnInput(); focusInput(); }
       renderProgress(true);

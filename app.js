@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.7.2';
-  const APP_BUILD = '20261117-1';
+  const APP_VERSION = 'v3.7.3';
+  const APP_BUILD = '20261117-2';
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
   const STORAGE_KEY = 'puppy_study_save_v2' + (SELFTEST ? '_selftest' : '');
@@ -2665,6 +2665,11 @@
         T.cnEvaluate(T.run().text.join('').slice(0, 80));
         ok(T.run().mash === 1 && /速度/.test(T.status()[1]), '30 秒打 80 字（一分鐘 160 字）視為可疑');
         T.quit();
+        // v3.7.3：每一關都能自己挑、預設停在總複習、完成的關卡換樣式
+        T.setMode('en'); T.quit();
+        const tyPane = document.getElementById('tab-typing');
+        ok(tyPane.querySelectorAll('.ty-lesson[disabled]').length === 0 && tyPane.querySelector('.ty-lesson.pick').dataset.lesson === 'L15', '打字關卡全部可以點，英打預設停在總複習');
+        ok(tyPane.querySelector('[data-lesson="L01"]').classList.contains('done'), '完成的關卡顯示成「已完成」樣式');
         T.quit();
       }
       // 每日自動備份
