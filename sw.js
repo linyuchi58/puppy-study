@@ -1,4 +1,4 @@
-const CACHE_NAME = 'puppy-study-web-v3.7.5-20261117-5';
+const CACHE_NAME = 'puppy-study-web-v3.7.6-20261117-6';
 const ASSETS = [
   './',
   './index.html',

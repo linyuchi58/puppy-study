@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.7.5';
-  const APP_BUILD = '20261117-5';
+  const APP_VERSION = 'v3.7.6';
+  const APP_BUILD = '20261117-6';
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
   const STORAGE_KEY = 'puppy_study_save_v2' + (SELFTEST ? '_selftest' : '');
@@ -2579,17 +2579,20 @@
         while (T.run() && zg++ < 500) zkey(codeOf(T.run().text[T.run().pos]));
         ok(T.result().mode === 'zh' && state.zhuyin.prog.Z01 >= 2 && T.unlockedIndex('zh') === 1 && state.typing.prog.L01 === 3, '注音過關紀錄另外存，不會蓋到英打');
         // 全班測驗與自己挑戰（v3.6.0）
-        const pc = T.parseCode('203517');
-        ok(pc && pc.mode === 'en' && pc.minutes === 2 && pc.scope === 3 && pc.symbols === 'fjdksl', '測驗碼 203517：英打 2 分鐘、考到第 3 關');
-        const pz = T.parseCode('603123');
-        ok(pz && pz.mode === 'zh' && pz.minutes === 5 && pz.scope === 3 && T.parseCode('700000') === null && T.parseCode('215000') === null && T.parseCode('12345') === null, '注音鍵位測驗碼（2／3／5 分鐘）可以解析，錯的碼會被擋下');
-        ok(T.testText(pc) === T.testText(T.parseCode('203517')) && T.testText(pc) !== T.testText(T.parseCode('203518')) && !/\s/.test(T.testText(pc)) && /^[fjdksl]+$/.test(T.testText(pc)), '同一組碼題目一模一樣、沒有空白、只考範圍內的字母');
+        const pc = T.parseCode('130317');
+        ok(pc && pc.mode === 'en' && pc.minutes === 2 && pc.scope === 3 && pc.symbols === 'fjdksl', '測驗碼 130317：英打 2 分鐘、考到第 3 關');
+        const p20 = T.parseCode('110110');
+        ok(p20 && p20.secs === 20 && p20.timeText === '20 秒' && T.parseCode('180110').timeText === '10 分鐘' && T.TIMES.join() === '20,60,120,180,240,300,480,600', '測驗時間：20 秒、1、2、3、4、5、8、10 分鐘（三種科目都一樣）');
+        ok(T.makeCode('cn', 600, 2, 7) === '380207' && T.makeCode('en', 20, 14, 99) === '111499', '測驗碼產生：科目＋時間＋範圍＋題目編號');
+        const pz = T.parseCode('260323');
+        ok(pz && pz.mode === 'zh' && pz.minutes === 5 && pz.scope === 3 && T.parseCode('400000') === null && T.parseCode('121500') === null && T.parseCode('190101') === null && T.parseCode('100101') === null && T.parseCode('12345') === null, '注音鍵位測驗碼可以解析，錯的碼會被擋下');
+        ok(T.testText(pc) === T.testText(T.parseCode('130317')) && T.testText(pc) !== T.testText(T.parseCode('130318')) && !/\s/.test(T.testText(pc)) && /^[fjdksl]+$/.test(T.testText(pc)), '同一組碼題目一模一樣、沒有空白、只考範圍內的字母');
         ok(T.scoreOf(100, 0) === 100 && T.scoreOf(90, 10) === 81 && T.scoreOf(0, 0) === 0, '得分＝打對字數×正確率');
         T.common().who = { g: 0, c: 0, s: 0 };
-        ok(T.prepareTest('101001', false) === false && T.view() === 'testsetup', '全班測驗沒選年級班級座號不能開始');
+        ok(T.prepareTest('120101', false) === false && T.view() === 'testsetup', '全班測驗沒選年級班級座號不能開始');
         T.common().who = { g: 4, c: 3, s: 12 };
         T.setMode('en');
-        ok(T.prepareTest('101001', false) === true && T.view() === 'ready', '選好座號、輸入測驗碼後進入準備畫面');
+        ok(T.prepareTest('120101', false) === true && T.view() === 'ready', '選好座號、輸入測驗碼後進入準備畫面');
         ok(/等候老師說開始之後，才能按鈕開始挑戰/.test((document.querySelector('#tab-typing .ty-wait-teacher') || {}).textContent || '') && window.PuppyTyping.isPlaying(), '準備畫面有超明顯的「等候老師說開始」，狗狗躲到角落');
         ok(T.handleKey({ key: 'Enter', preventDefault() {} }) === 'start' && T.view() === 'play' && T.run().test.attempt === 1, '按 Enter 開始，記第 1 次');
         ok(key(T.run().text[0]) === 'ignored', '倒數 3 秒內按鍵不算');
@@ -2602,9 +2605,9 @@
         const tr = T.result();
         ok(tr.test && tr.ok === 19 && tr.miss === 1 && tr.score === 18 && tr.xp === 4 && state.stars === s1, '測驗結束：19 對 1 錯得 18 分、+4 經驗值、不給星星');
         const parts = tr.qr.split('|');
-        ok(parts.length === 15 && parts[0] === 'PZT1' && parts[1] === '101001' && parts[2] === '4' && parts[3] === '3' && parts[4] === '12' && parts[5] === '1' && parts[6] === '18', 'QR 內容有測驗碼、年班座號、次數、得分');
+        ok(parts.length === 15 && parts[0] === 'PZT1' && parts[1] === '120101' && parts[2] === '4' && parts[3] === '3' && parts[4] === '12' && parts[5] === '1' && parts[6] === '18', 'QR 內容有測驗碼、年班座號、次數、得分');
         ok(window.PuppyStamp.code(T.QR_KEY || window.PuppyTyping.QR_KEY, parts.slice(0, 14).join('|')) === parts[14], 'QR 檢查碼正確（老師端可以驗證）');
-        T.prepareTest('101001', false);
+        T.prepareTest('120101', false);
         T.startTest();
         T.setRun({ test: Object.assign(T.run().test, { startAt: Date.now() - 1 }) });
         key(T.run().text[0]);
@@ -2612,7 +2615,7 @@
         ok(T.result().attempt === 2 && T.result().xp === 0, '同一組碼第 2 次：次數變 2、沒有經驗值');
         let selfXp = 0;
         for (let i = 0; i < 4; i++) {
-          T.prepareTest(T.makeCode('zh', 2, 1), true);
+          T.prepareTest(T.makeCode('zh', 120, 1), true);
           T.startTest();
           T.setRun({ test: Object.assign(T.run().test, { startAt: Date.now() - 1 }) });
           zkey(codeOf(T.run().text[0]));
@@ -2629,9 +2632,9 @@
         // 中文打字（v3.7.0）
         const ZT = window.PUPPY_ZH_TEXTS;
         ok(ZT && ZT.sentences.length >= 30 && ZT.passages.length >= 15 && ZT.punct.length >= 10 && !/[A-Za-z0-9,.;:?!()]/.test([].concat(ZT.words, ZT.sentences, ZT.passages, ZT.punct).join('')), '中文題目載入了，而且沒有半形字元');
-        const cc = T.parseCode('903042');
-        ok(cc && cc.mode === 'cn' && cc.minutes === 8 && cc.scope === 3 && T.parseCode('704000') === null && T.parseCode('701000').minutes === 3 && T.parseCode('801000').minutes === 5, '中文打字測驗碼：7／8／9＝3／5／8 分鐘，難度 1～3');
-        ok(T.testText(cc) === T.testText(T.parseCode('903042')) && T.testText(cc).length >= 560 && /[「」：；（）]/.test(T.testText(cc)), '同一組碼中文題目一樣、夠長、標點題有特殊標點');
+        const cc = T.parseCode('370342');
+        ok(cc && cc.mode === 'cn' && cc.minutes === 8 && cc.scope === 3 && T.parseCode('320400') === null && T.parseCode('340100').minutes === 3 && T.parseCode('360100').minutes === 5, '中文打字測驗碼：第 1 碼 3＝中文、第 2 碼是時間，難度 1～3');
+        ok(T.testText(cc) === T.testText(T.parseCode('370342')) && T.testText(cc).length >= 560 && /[「」：；（）]/.test(T.testText(cc)), '同一組碼中文題目一樣、夠長、標點題有特殊標點');
         let cmp = T.cnCompare('今天天氣很好，我們去公園。', '今天天氣很好，我們去公園。');
         ok(cmp.ok === 13 && cmp.miss === 0 && cmp.covered === 13, '中文比對：全對');
         cmp = T.cnCompare('今天天氣很好，我們去公園。', '今天天器很好，我們');
@@ -2651,7 +2654,7 @@
         T.cnEvaluate(tgt);
         ok(T.view() === 'result' && T.result().mode === 'cn' && state.chinese.prog.C02 >= 1 && T.unlockedIndex('cn') === 1 || (T.result() && T.result().mode === 'cn' && state.chinese.prog.C02 >= 1), '中文練習打完自動過關，紀錄存在 state.chinese');
         T.common().who = { g: 4, c: 3, s: 12 };
-        T.prepareTest('701123', false);
+        T.prepareTest('340123', false);
         T.startTest();
         ok(document.querySelector('#tyInput').disabled === true && T.cnEvaluate('今天') === null, '倒數時輸入框鎖住、不計分');
         T.setRun({ test: Object.assign(T.run().test, { startAt: Date.now() - 30000 }) });
@@ -2659,8 +2662,8 @@
         T.cnEvaluate(tt.slice(0, 20) + '錯' + tt.slice(21, 30));
         T.finishTest();
         const cr = T.result();
-        ok(cr.mode === 'cn' && cr.ok === 29 && cr.miss === 1 && cr.score === 28 && cr.qr.split('|')[1] === '701123', '中文測驗：29 對 1 錯得 28 分，QR 有測驗碼');
-        T.prepareTest('701123', false);
+        ok(cr.mode === 'cn' && cr.ok === 29 && cr.miss === 1 && cr.score === 28 && cr.qr.split('|')[1] === '340123', '中文測驗：29 對 1 錯得 28 分，QR 有測驗碼');
+        T.prepareTest('340123', false);
         T.startTest();
         T.setRun({ test: Object.assign(T.run().test, { startAt: Date.now() - 30000 }) });
         T.cnEvaluate(T.run().text.join('').slice(0, 80));
@@ -2674,11 +2677,11 @@
         // v3.7.5：輸入測驗碼時顯示老師設定（鎖定），並收起自己挑戰
         const whoBak = JSON.stringify(T.common().who);
         T.common().who = { g: 0, c: 0, s: 0 };
-        T.prepareTest('205123', false);
+        T.prepareTest('130523', false);
         const codeIn = tyPane.querySelector('#tyCode');
-        codeIn.value = '20512'; codeIn.dispatchEvent(new Event('input'));
+        codeIn.value = '13052'; codeIn.dispatchEvent(new Event('input'));
         ok(/還差 1 碼/.test(tyPane.querySelector('#tyCodeInfo').textContent) && tyPane.querySelector('#tySelfBox').hidden, '輸入測驗碼時收起「自己挑戰」，提示還差幾碼');
-        codeIn.value = '205123'; codeIn.dispatchEvent(new Event('input'));
+        codeIn.value = '130523'; codeIn.dispatchEvent(new Event('input'));
         const ci = tyPane.querySelector('#tyCodeInfo').textContent;
         ok(/不能改/.test(ci) && /英打/.test(ci) && /2 分鐘/.test(ci) && /第 1～5 關/.test(ci), '輸入完 6 碼馬上顯示老師的設定：' + ci.replace(/\s+/g, ' ').trim());
         codeIn.value = ''; codeIn.dispatchEvent(new Event('input'));

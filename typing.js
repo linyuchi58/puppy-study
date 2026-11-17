@@ -6,7 +6,7 @@
 //   ‧ 打錯不會往前跳，要打對才繼續（TypingClub 的做法）；一次加一兩個新鍵（Keybr 的做法）。
 //   ‧ 顏色帶（偏寬鬆）：🟢 穩定、🟡 錯誤比較多或休息中、🔴 只有亂按或一直按住。亂按那一段不算分。
 //   ‧ 全班測驗：老師在 teacher.html 產生 6 位數測驗碼，全班輸入同一組碼就拿到同一份題目。
-//     測驗碼＝第 1 碼（1～3 英打 1/2/3 分鐘、4～6 注音鍵位 2/3/5 分鐘、7～9 中文打字 3/5/8 分鐘）＋第 2～3 碼（範圍）＋第 4～6 碼（亂數種子）。
+//     測驗碼（v3.7.6）＝第 1 碼科目（1 英打、2 注音鍵位、3 中文）＋第 2 碼時間（20 秒、1、2、3、4、5、8、10 分鐘）＋第 3～4 碼範圍＋第 5～6 碼題目編號。
 //   ‧ 中文打字（v3.7.0）：學生開著真的微軟注音打進輸入框，程式只比對送出的字（用最長共同子序列對齊），
 //     打錯可以繼續往下打、最後一起算；半形標點算錯並提醒；不能貼上。題目在 zh_texts.js（Claude 原創）。
 //     題目沒有空白鍵；每 5 個字之間的間隔只是好讀，不用按。得分＝打對的字數 × 正確率。
@@ -107,8 +107,11 @@
     { n: 3, title: '標點比較多的短文', kind: 'punct' }
   ];
   // 各科目的測驗時間（分鐘）：測驗碼第 1 碼依序是 1～3、4～6、7～9
-  const MINUTES = { en: [1, 2, 3], zh: [2, 3, 5], cn: [3, 5, 8] };
-  const BASE_DIGIT = { en: 1, zh: 4, cn: 7 };
+  // v3.7.6：三種科目的測驗時間都一樣（秒）。測驗碼第 2 碼＝第幾個時間（1～8）
+  const TIMES = [20, 60, 120, 180, 240, 300, 480, 600];
+  const SUBJ_DIGIT = { en: 1, zh: 2, cn: 3 };
+  const DEFAULT_SECS = { en: 60, zh: 60, cn: 180 };
+  function timeLabel(secs) { return secs < 60 ? secs + ' 秒' : (secs / 60) + ' 分鐘'; }
   const HALF_PUNCT = /[,.;:?!()"'<>\[\]]/;
   const CN_FAST = 120;           // 中文一分鐘超過 120 字，視為不合理（可能貼上或語音）
   function before(lessons) {
@@ -228,21 +231,22 @@
   }
 
   // ── 測驗碼 ────────────────────────────────────────────────
-  // 回傳 { code, mode, minutes, scope, seed, symbols, scopeText } 或 null（碼不對）
+  // v3.7.6 測驗碼（6 碼）：第 1 碼＝科目（1 英打、2 注音鍵位、3 中文打字）、第 2 碼＝時間（1～8 對應 TIMES）、
+  //   第 3～4 碼＝範圍、第 5～6 碼＝題目編號。v3.7.5 以前的舊測驗碼不能再用。
+  // 回傳 { code, mode, secs, minutes, timeText, scope, seed, symbols, scopeText } 或 null（碼不對）
   function parseCode(code) {
     const s = String(code || '').replace(/\D/g, '');
-    if (!/^[1-9]\d{5}$/.test(s)) return null;
-    const d1 = +s[0];
-    const mode = d1 <= 3 ? 'en' : d1 <= 6 ? 'zh' : 'cn';
-    const minutes = MINUTES[mode][d1 - BASE_DIGIT[mode]];
-    const scope = +s.slice(1, 3);
-    const seed = +s.slice(3);
+    if (!/^[1-3][1-8]\d{4}$/.test(s)) return null;
+    const mode = ['en', 'zh', 'cn'][+s[0] - 1];
+    const secs = TIMES[+s[1] - 1];
+    const scope = +s.slice(2, 4);
+    const seed = +s.slice(4);
     let symbols = '';
     let scopeText;
     if (mode === 'en') {
       if (scope < 1 || scope > 14) return null;
       symbols = MODES.en.before[LETTER_LESSONS[scope - 1].id];
-      scopeText = scope >= 14 ? '全部 26 個字母' : `第 1～${scope} 關的字母（${symbols.toUpperCase().split('').join(' ')}）`;
+      scopeText = scope >= 14 ? '全部 26 個字母' : `${scope === 1 ? '第 1 關' : `第 1～${scope} 關`}的字母（${symbols.toUpperCase().split('').join(' ')}）`;
     } else if (mode === 'zh') {
       const sc = ZH_SCOPES.find(x => x.n === scope);
       if (!sc) return null;
@@ -253,13 +257,15 @@
       if (!sc) return null;
       scopeText = sc.title;
     }
-    return { code: s, mode, minutes, scope, seed, symbols, scopeText };
+    return { code: s, mode, secs, minutes: secs / 60, timeText: timeLabel(secs), scope, seed, symbols, scopeText };
   }
 
-  function makeCode(m, minutes, scope, seed) {
-    const idx = Math.max(0, MINUTES[m].indexOf(+minutes));
-    const sd = seed == null ? Math.floor(Math.random() * 1000) : seed;
-    return String(BASE_DIGIT[m] + idx) + String(scope).padStart(2, '0') + String(sd).padStart(3, '0');
+  // secs：測驗秒數（必須是 TIMES 裡的值，不是的話用最接近的）
+  function makeCode(m, secs, scope, seed) {
+    let idx = TIMES.indexOf(+secs);
+    if (idx < 0) idx = TIMES.reduce((b, t, k) => (Math.abs(t - secs) < Math.abs(TIMES[b] - secs) ? k : b), 0);
+    const sd = seed == null ? Math.floor(Math.random() * 100) : seed % 100;
+    return String(SUBJ_DIGIT[m]) + String(idx + 1) + String(scope).padStart(2, '0') + String(sd).padStart(2, '0');
   }
 
   function zhTexts() { return window.PUPPY_ZH_TEXTS || { words: [], sentences: [], passages: [], punct: [] }; }
@@ -295,8 +301,9 @@
   function testText(info) {
     // 同一組碼一定得到同一份題目（種子包含整組碼）
     const rnd = seeded(parseInt(info.code, 10));
-    if (info.mode === 'cn') return cnText(CN_SCOPES.find(x => x.n === info.scope).kind, info.minutes * 70, rnd);
-    return makeRun(info.symbols, '', info.minutes * (info.mode === 'zh' ? 120 : 220), rnd);
+    const mins = Math.max(info.minutes, 0.5);
+    if (info.mode === 'cn') return cnText(CN_SCOPES.find(x => x.n === info.scope).kind, Math.ceil(mins * 70), rnd);
+    return makeRun(info.symbols, '', Math.ceil(mins * (info.mode === 'zh' ? 120 : 220)), rnd);
   }
 
   // 中文比對：打出來的字和題目用「最長共同子序列」對齊
@@ -571,7 +578,7 @@
     run = newRun({
       id: 'test', title: self ? '🏁 自己挑戰' : '🏁 全班測驗', tip: info.scopeText,
       text: Array.from(testText(info)),
-      test: { info, self, attempt: rec.n, startAt: now + 3000, endAt: now + 3000 + info.minutes * 60000 }
+      test: { info, self, attempt: rec.n, startAt: now + 3000, endAt: now + 3000 + info.secs * 1000 }
     });
     pendingTest = null;
     view = 'play';
@@ -748,7 +755,7 @@
     const test = run.test;
     const info = test.info;
     const d = saveKeyStats();
-    d.ms += info.minutes * 60000;
+    d.ms += info.secs * 1000;
     const total = run.ok + run.miss;
     const acc = total ? Math.round(run.ok / total * 1000) / 10 : 0;
     const score = scoreOf(run.ok, run.miss);
@@ -759,7 +766,7 @@
     rec.best = Math.max(rec.best || 0, score);
     rec.done = true;
     c.tests[info.code] = rec;
-    const bkey = `${info.mode}-${info.minutes}-${info.scope}`;
+    const bkey = `${info.mode}-${info.secs}s-${info.scope}`;
     const t = data();
     const prevBest = t.best[bkey] || 0;
     if (score > prevBest) t.best[bkey] = score;
@@ -920,7 +927,7 @@
   }
 
   function minuteOptions(m) {
-    return MINUTES[m].map((x, i) => `<option value="${x}" ${i === 1 && m !== 'en' ? 'selected' : ''}>${x} 分鐘</option>`).join('');
+    return TIMES.map(x => `<option value="${x}" ${x === DEFAULT_SECS[m] ? 'selected' : ''}>${timeLabel(x)}</option>`).join('');
   }
 
   function setupHtml() {
@@ -977,7 +984,7 @@
     const { info, self } = pendingTest;
     const who = common().who;
     const rec = common().tests[info.code];
-    const best = storeOf(info.mode).best[`${info.mode}-${info.minutes}-${info.scope}`] || 0;
+    const best = storeOf(info.mode).best[`${info.mode}-${info.secs}s-${info.scope}`] || 0;
     return `
       <div class="card-box ty-ready">
         <h2>${self ? '🙋 自己挑戰' : '👩‍🏫 全班測驗'}</h2>
@@ -985,7 +992,7 @@
         <ul class="ty-ready-list">
           <li>科目：<b>${SUBJ[info.mode]}</b></li>
           <li>範圍：<b>${esc(info.scopeText)}</b></li>
-          <li>時間：<b>${info.minutes} 分鐘</b>（時間到自動結束）</li>
+          <li>時間：<b>${info.timeText}</b>（時間到自動結束）</li>
           ${self ? '' : `<li>我是：<b>${who.g} 年級 ${who.c} 班 ${who.s} 號</b></li>`}
           ${rec ? `<li>這組測驗碼你已經測過 <b>${rec.n}</b> 次</li>` : ''}
           ${best ? `<li>個人最佳（同樣的時間和範圍）：<b>${best} 分</b></li>` : ''}
@@ -1087,7 +1094,7 @@
         ${who ? `<div class="ty-who-big">${who}</div>` : ''}
         <div class="ty-score"><b>${r.score}</b><span>分</span></div>
         ${r.newBest ? '<p class="ty-note">🎉 打破你的個人最佳了！</p>' : ''}
-        <div class="ty-test-meta">測驗碼 <b>${r.code}</b>　｜　第 <b class="${r.attempt > 1 ? 'bad' : ''}">${r.attempt}</b> 次　｜　${esc(r.info.scopeText)}　${r.info.minutes} 分鐘</div>
+        <div class="ty-test-meta">測驗碼 <b>${r.code}</b>　｜　第 <b class="${r.attempt > 1 ? 'bad' : ''}">${r.attempt}</b> 次　｜　${esc(r.info.scopeText)}　${r.info.timeText}</div>
         ${r.self ? '' : `<div class="ty-qr">${qrSvg(r.qr)}</div><p class="section-sub">請把這個畫面留著，等老師用手機掃描 QR Code 收成績。</p>`}
         <div class="ty-stats">
           <div><b>${r.acc}%</b><span>正確率</span></div>
@@ -1118,7 +1125,7 @@
     on('tyStart', startTest);
     on('tyAgainSelf', () => {
       const i = lastResult.info;
-      prepareTest(makeCode(i.mode, i.minutes, i.scope), true);
+      prepareTest(makeCode(i.mode, i.secs, i.scope), true);
     });
     if (view === 'testsetup') bindSetup();
     if (!html) {
@@ -1168,7 +1175,7 @@
       if (!c) { info.className = 'ty-code-info bad'; info.textContent = '⚠ 這組測驗碼不對，請再看一次黑板。'; return; }
       info.className = 'ty-code-info ok';
       info.innerHTML = `<b>🔒 老師已經設定好了（不能改）</b>
-        <span>科目：<b>${SUBJ[c.mode]}</b></span><span>時間：<b>${c.minutes} 分鐘</b></span><span>範圍：<b>${esc(c.scopeText)}</b></span>`;
+        <span>科目：<b>${SUBJ[c.mode]}</b></span><span>時間：<b>${c.timeText}</b></span><span>範圍：<b>${esc(c.scopeText)}</b></span>`;
     };
     codeEl.addEventListener('input', preview);
     codeEl.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.stopPropagation(); go(); } });
@@ -1303,11 +1310,11 @@
     hide() { document.body.classList.remove('ty-playing'); if (view === 'play' && api.focus) api.focus(false); },
     isPlaying() { return view === 'play' || view === 'ready'; },   // v3.7.5：準備畫面也算，狗狗會躲到角落
     // 給 teacher.html 用（同一套測驗碼）
-    parseCode, makeCode, ZH_SCOPES, CN_SCOPES, MINUTES, LETTER_LESSONS, QR_KEY,
+    parseCode, makeCode, ZH_SCOPES, CN_SCOPES, TIMES, timeLabel, DEFAULT_SECS, LETTER_LESSONS, QR_KEY,
     // 自動測試用
     _t: {
       LETTER_LESSONS, ZH_LESSONS, FINGER_OF, LETTERS_BEFORE, ZH_OF_KEY, KEY_OF_ZH, CODE_KEY, MODES,
-      CN_LESSONS, cnText, cnCompare, cnEvaluate,
+      CN_LESSONS, cnText, cnCompare, cnEvaluate, TIMES,
       makeText, makeRun, startLesson, handleKey, starsFor, unlockedIndex, parseCode, makeCode, testText, scoreOf, qrPayload,
       prepareTest, startTest, finishTest, common,
       run: () => run, result: () => lastResult, view: () => view, status, quit, data,

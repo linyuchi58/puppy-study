@@ -158,20 +158,20 @@
       const subj = $('mSubj').value;
       if (subj === 'en') {
         s.innerHTML = PT.LETTER_LESSONS.slice(0, 14).map((l, i) => {
-          const info = PT.parseCode(PT.makeCode('en', 1, i + 1, 0));
+          const info = PT.parseCode(PT.makeCode('en', 60, i + 1, 0));
           return `<option value="${i + 1}" ${i === 13 ? 'selected' : ''}>${i + 1 >= 14 ? '全部 26 個字母（第 1～14 關）' : '考到第 ' + (i + 1) + ' 關：' + info.symbols.toUpperCase().split('').join(' ')}</option>`;
         }).join('');
       } else {
         s.innerHTML = (subj === 'zh' ? PT.ZH_SCOPES : PT.CN_SCOPES).map(sc => `<option value="${sc.n}">${sc.title}</option>`).join('');
       }
-      $('mMin').innerHTML = PT.MINUTES[subj].map((x, i) => `<option value="${x}" ${i === 1 ? 'selected' : ''}>${x} 分鐘</option>`).join('');
+      $('mMin').innerHTML = PT.TIMES.map(x => `<option value="${x}" ${x === PT.DEFAULT_SECS[subj] ? 'selected' : ''}>${PT.timeLabel(x)}</option>`).join('');
     }
     let lastCode = '';
     function makeNew() {
       lastCode = PT.makeCode($('mSubj').value, +$('mMin').value, +$('mScope').value);
       const info = PT.parseCode(lastCode);
       $('bigCode').textContent = lastCode;
-      $('codeInfo').textContent = `${SUBJ[info.mode]}｜${info.minutes} 分鐘｜${info.scopeText}`;
+      $('codeInfo').textContent = `${SUBJ[info.mode]}｜${info.timeText}｜${info.scopeText}`;
       $('cnNote').hidden = info.mode !== 'cn';
       $('codeCard').hidden = false;
       return lastCode;
@@ -230,7 +230,7 @@
       const curCode = wantCode || fc.value || codes[codes.length - 1] || '';
       fc.innerHTML = codes.length ? codes.map(c => {
         const info = PT.parseCode(c);
-        return `<option value="${c}" ${c === curCode ? 'selected' : ''}>${c}（${SUBJ[info.mode]} ${info.minutes} 分）</option>`;
+        return `<option value="${c}" ${c === curCode ? 'selected' : ''}>${c}（${SUBJ[info.mode]} ${info.timeText}）</option>`;
       }).join('') : '<option value="">還沒有成績</option>';
       const classes = [...new Set(rows.filter(r => r.code === fc.value).map(r => r.g + '-' + r.c))]
         .sort((a, b) => { const [ag, ac] = a.split('-').map(Number); const [bg, bc] = b.split('-').map(Number); return ag - bg || ac - bc; });
@@ -380,33 +380,38 @@
           const body = ['PZT1', code, g, c, s, attempt, score, score, 2, 950, 20, 0, self ? 1 : 0, when].join('|');
           return body + '|' + window.PuppyStamp.code(PT.QR_KEY, body);
         };
-        ok(addPayload(mk('203517', 4, 3, 12, 1, 80, '202611161000'))[0], '正確的 QR 可以加入');
-        ok(addPayload(mk('203517', 4, 3, 5, 1, 60, '202611161001'))[0] && rows.length === 2, '第二位學生加入');
-        ok(addPayload(mk('203517', 4, 3, 12, 1, 80, '202611161000'))[2] === 'dup' && rows.length === 2, '重複掃同一個 QR 不會多一筆');
-        ok(addPayload(mk('203517', 4, 3, 12, 2, 95, '202611161005'))[0] && rows.length === 2 && rows.find(r => r.s === 12).score === 95, '同一人重測：保留最新一筆');
-        ok(addPayload(mk('203517', 4, 3, 12, 1, 50, '202611160900'))[2] === 'old' && rows.find(r => r.s === 12).score === 95, '比較舊的成績不會蓋掉新的');
-        const bad = mk('203517', 4, 3, 7, 1, 70, '202611161002').replace('|70|', '|99|');
+        ok(addPayload(mk('120312', 4, 3, 12, 1, 80, '202611161000'))[0], '正確的 QR 可以加入');
+        ok(addPayload(mk('120312', 4, 3, 5, 1, 60, '202611161001'))[0] && rows.length === 2, '第二位學生加入');
+        ok(addPayload(mk('120312', 4, 3, 12, 1, 80, '202611161000'))[2] === 'dup' && rows.length === 2, '重複掃同一個 QR 不會多一筆');
+        ok(addPayload(mk('120312', 4, 3, 12, 2, 95, '202611161005'))[0] && rows.length === 2 && rows.find(r => r.s === 12).score === 95, '同一人重測：保留最新一筆');
+        ok(addPayload(mk('120312', 4, 3, 12, 1, 50, '202611160900'))[2] === 'old' && rows.find(r => r.s === 12).score === 95, '比較舊的成績不會蓋掉新的');
+        const bad = mk('120312', 4, 3, 7, 1, 70, '202611161002').replace('|70|', '|99|');
         ok(addPayload(bad)[0] === false && rows.length === 2, '被改過分數的 QR 會被擋下');
-        ok(addPayload(mk('203517', 4, 3, 8, 1, 70, '202611161002', true))[0] === false, '自己挑戰的成績不收');
+        ok(addPayload(mk('120312', 4, 3, 8, 1, 70, '202611161002', true))[0] === false, '自己挑戰的成績不收');
         ok(addPayload('hello')[0] === false, '不是成績的 QR 會被擋下');
-        renderTable('203517', '4-3');
+        renderTable('120312', '4-3');
         $('fSize').value = '13';
         renderTable();
         ok(/平均 77\.5 分/.test($('stats').textContent) && /最高 95/.test($('stats').textContent) && /最低 60/.test($('stats').textContent), '平均、最高、最低正確');
         ok(/1、2、3、4、6/.test($('missing').textContent) && !/、5、/.test($('missing').textContent) && /13$/.test($('missing').textContent), '列出還沒交的座號');
         const csv = csvText();
-        ok(csv.charCodeAt(0) === 0xFEFF && csv.split('\r\n').length === 3 && /203517,4,3,5,60/.test(csv), 'CSV 有 BOM、依座號排序');
+        ok(csv.charCodeAt(0) === 0xFEFF && csv.split('\r\n').length === 3 && /120312,4,3,5,60/.test(csv), 'CSV 有 BOM、依座號排序');
         ok($('tbody').querySelectorAll('tr').length === 2 && $('tbody').querySelector('td.warn') !== null, '表格兩列，重測的人標紅色');
         const code = makeNew();
-        ok(/^[1-3]\d{5}$/.test(code) && PT.parseCode(code).scope === 14, '產生的英打測驗碼格式正確');
-        $('mSubj').value = 'zh'; fillScope(); $('mMin').value = '3'; $('mScope').value = '2';
+        ok(/^1[1-8]14\d{2}$/.test(code) && PT.parseCode(code).scope === 14 && PT.parseCode(code).secs === 60, '產生的英打測驗碼格式正確（預設 1 分鐘）：' + code);
+        const labels = [...$('mMin').options].map(o => o.textContent).join('、');
+        ok(labels === '20 秒、1 分鐘、2 分鐘、3 分鐘、4 分鐘、5 分鐘、8 分鐘、10 分鐘', '時間選項：' + labels);
+        $('mMin').value = '20';
+        const ec = makeNew();
+        ok(ec[1] === '1' && /英打｜20 秒/.test($('codeInfo').textContent), '英打 20 秒的測驗碼：' + ec);
+        $('mSubj').value = 'zh'; fillScope(); $('mMin').value = '180'; $('mScope').value = '2';
         const zc = makeNew();
-        ok(zc[0] === '5' && zc.slice(1, 3) === '02', '注音鍵位 3 分鐘、範圍 2 的測驗碼：' + zc);
+        ok(zc[0] === '2' && zc[1] === '4' && zc.slice(2, 4) === '02', '注音鍵位 3 分鐘、範圍 2 的測驗碼：' + zc);
         $('mSubj').value = 'cn'; fillScope();
-        ok($('mMin').options.length === 3 && $('mMin').options[2].value === '8' && $('mScope').options.length === 3, '中文打字的時間是 3／5／8 分鐘、難度 3 種');
-        $('mMin').value = '8'; $('mScope').value = '3';
+        ok($('mMin').options.length === 8 && $('mMin').value === '180' && $('mScope').options.length === 3, '中文打字一樣有 8 種時間、預設 3 分鐘、難度 3 種');
+        $('mMin').value = '600'; $('mScope').value = '3';
         const cc = makeNew();
-        ok(cc[0] === '9' && cc.slice(1, 3) === '03' && /中文打字｜8 分鐘/.test($('codeInfo').textContent) && !$('cnNote').hidden, '中文打字 8 分鐘、難度 3 的測驗碼：' + cc);
+        ok(cc[0] === '3' && cc[1] === '8' && cc.slice(2, 4) === '03' && /中文打字｜10 分鐘/.test($('codeInfo').textContent) && !$('cnNote').hidden, '中文打字 10 分鐘、難度 3 的測驗碼：' + cc);
         ok(addPayload(mk(cc, 4, 3, 1, 1, 40, '202611161010'))[0] && /中文打字/.test($('fCode').textContent), '中文打字的成績也能收');
       } catch (e) {
         fails.push('發生例外：' + e.message);
