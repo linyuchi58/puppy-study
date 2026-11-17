@@ -834,17 +834,19 @@
     return `<svg class="ty-hands" viewBox="0 0 350 156" aria-hidden="true">${left}${right}</svg>`;
   }
 
-  // 全形標點的按法（微軟注音）。「、」「；」各版本可能不同，請在 Windows 上確認後再改這裡。
+  // 全形標點的按法（微軟注音，中文模式）。v3.7.4：依微軟官方說明改成「Ctrl（＋Shift）＋符號鍵」，
+  // 另一種方法是先按反引號 `（數字 1 左邊）再按符號鍵。！、「」、（）是依通則推的，請在 Windows 上確認。
   const PUNCT_KEYS = [
-    ['，', 'Shift ＋ ,'], ['。', 'Shift ＋ .'], ['？', 'Shift ＋ /'], ['！', 'Shift ＋ 1'], ['：', 'Shift ＋ ;'],
-    ['「', 'Shift ＋ ['], ['」', 'Shift ＋ ]'], ['（', 'Shift ＋ 9'], ['）', 'Shift ＋ 0'],
-    ['、', '符號表'], ['；', '符號表']
+    ['，', 'Ctrl ＋ ,'], ['。', 'Ctrl ＋ .'], ['、', "Ctrl ＋ '"], ['；', 'Ctrl ＋ ;'],
+    ['：', 'Ctrl ＋ Shift ＋ ;'], ['？', 'Ctrl ＋ Shift ＋ /'], ['！', 'Ctrl ＋ Shift ＋ 1'],
+    ['「', 'Ctrl ＋ ['], ['」', 'Ctrl ＋ ]'], ['（', 'Ctrl ＋ Shift ＋ 9'], ['）', 'Ctrl ＋ Shift ＋ 0']
   ];
   const SUBJ = { en: '英打', zh: '注音鍵位', cn: '中文打字' };
   function punctCardHtml() {
-    return `<div class="ty-punct"><b>全形標點怎麼打（微軟注音中文模式）</b>
+    return `<div class="ty-punct"><b>全形標點怎麼打（微軟注音・中文模式）</b>
       <div class="ty-punct-grid">${PUNCT_KEYS.map(([c, k]) => `<span><i>${c}</i>${esc(k)}</span>`).join('')}</div>
-      <small>找不到的符號：按 Ctrl ＋ Alt ＋ ,（逗號）打開符號表，用滑鼠點選。</small></div>`;
+      <small>🔁 另一種方法：先按 <kbd>\`</kbd>（數字 1 左邊），放開後再按符號鍵，例如 <kbd>\`</kbd> 再按 <kbd>,</kbd> 就是「，」。<br>
+      🔍 找不到的符號：按 Ctrl ＋ Alt ＋ ,（逗號）打開符號表。</small></div>`;
   }
 
   function homeHtml() {

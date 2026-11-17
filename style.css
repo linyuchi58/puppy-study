@@ -876,3 +876,17 @@ body { padding-bottom: 96px; }
 .ty-lesson.review .ty-ln { width: auto; font-size: 1.6rem; }
 .ty-lesson.review .ty-lt { font-size: 1.15rem; }
 .ty-lesson.review .ty-ln .ty-badge { font-size: 0.78rem; }
+
+/* ── v3.7.4 全形標點提示卡：改成 Ctrl 按法，一行一個 ── */
+.ty-cn-row { grid-template-columns: 1fr 290px; }
+.ty-punct-grid { grid-template-columns: 1fr; gap: 3px; }
+.ty-punct-grid span { display: flex; align-items: center; gap: 6px; font-weight: 700; }
+.ty-punct-grid i { width: 2.2em; text-align: center; background: #fff; border-radius: 6px; box-shadow: inset 0 0 0 1px #eadbb5; }
+.ty-punct small { display: block; line-height: 1.6; margin-top: 4px; }
+.ty-punct kbd { font-family: Consolas, monospace; font-weight: 800; background: #fff; border: 1px solid #d9c9a3; border-bottom-width: 2px; border-radius: 5px; padding: 0 5px; }
+.ty-cn-row { grid-template-columns: 1fr 340px; }
+.ty-punct { padding: 8px 10px; }
+.ty-punct-grid { grid-template-columns: 1fr 1fr; gap: 3px 8px; font-size: 0.8rem; }
+.ty-punct-grid span { white-space: nowrap; gap: 4px; }
+.ty-punct-grid i { width: 1.7em; font-size: 1.05rem; }
+.ty-punct small { font-size: 0.74rem; }

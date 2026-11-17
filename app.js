@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.7.3';
-  const APP_BUILD = '20261117-2';
+  const APP_VERSION = 'v3.7.4';
+  const APP_BUILD = '20261117-3';
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
   const STORAGE_KEY = 'puppy_study_save_v2' + (SELFTEST ? '_selftest' : '');
