@@ -921,3 +921,25 @@ body { padding-bottom: 96px; }
 .ty-start-big small { font-size: 0.85rem; font-weight: 700; opacity: 0.9; }
 .ty-start-big:active { transform: translateY(4px); box-shadow: 0 2px 0 #b8402f; }
 .ty-start-big:focus-visible { outline: 4px solid #3d8fd6; outline-offset: 3px; }
+
+/* ── v3.7.6 測驗模式：全螢幕專心畫面（狗狗、上方列、下方按鈕都藏起來） ── */
+body.ty-exam .topbar, body.ty-exam .pet-stage, body.ty-exam .bottom-nav, body.ty-exam .site-foot,
+body.ty-exam #worldCanvas { display: none !important; }
+body.ty-exam { padding-bottom: 0; overflow: hidden; }
+body.ty-exam #tab-typing {
+  position: fixed; inset: 0; z-index: 500; overflow: auto; display: block !important;
+  background: radial-gradient(circle at top, #fffdf8, #fbefe0); padding: 18px 16px 24px;
+}
+body.ty-exam #tab-typing > .card-box { max-width: 1180px; margin: 0 auto; }
+body.ty-exam .modal-backdrop { z-index: 600; }
+.ty-fs-bar {
+  display: block; width: min(1180px, 100%); margin: 0 auto 10px; padding: 12px; border: 0; border-radius: 14px;
+  background: #c8372f; color: #fff; font: inherit; font-size: 1.15rem; font-weight: 900; cursor: pointer;
+  animation: tyWaitPulse 1.2s ease-in-out infinite;
+}
+.ty-fs-bar[hidden] { display: none; }
+.ty-unlock { margin: 14px auto 0; max-width: 520px; padding: 14px 16px; border-radius: 16px; background: #fff4c2; border: 3px solid #f2b705; text-align: center; }
+.ty-unlock > b { display: block; font-size: 1.05rem; color: #6b4a00; margin-bottom: 8px; }
+.ty-unlock-row { display: flex; gap: 8px; justify-content: center; }
+.ty-unlock-row input { width: 9em; font: inherit; font-size: 1.6rem; font-weight: 900; letter-spacing: 0.4em; text-align: center; padding: 6px; border: 3px solid #d99a00; border-radius: 12px; }
+.ty-unlock-msg { min-height: 1.4em; margin-top: 6px; color: var(--red); font-weight: 800; }

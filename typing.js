@@ -53,7 +53,8 @@
   const KEY_OF_ZH = {};
   Object.keys(ZH_OF_KEY).forEach(k => { KEY_OF_ZH[ZH_OF_KEY[k]] = k; });
   // 實體按鍵代碼 → 鍵盤上的字（注音用這個判斷，開著中文輸入法也能練）
-  const CODE_KEY = { Comma: ',', Period: '.', Semicolon: ';', Slash: '/', Minus: '-', Space: ' ' };
+  const CODE_KEY = { Comma: ',', Period: '.', Semicolon: ';', Slash: '/', Minus: '-', Space: ' ',
+    Equal: '=', BracketLeft: '[', BracketRight: ']', Backslash: '\\', Quote: "'", Backquote: '`' };
   for (let i = 0; i < 10; i++) CODE_KEY['Digit' + i] = String(i);
   'abcdefghijklmnopqrstuvwxyz'.split('').forEach(c => { CODE_KEY['Key' + c.toUpperCase()] = c; });
   // 注音分組的顏色（注音不教指法，用顏色幫忙記區域）
@@ -431,6 +432,52 @@
     }, extra);
   }
 
+  // ── v3.7.6 測驗模式：全螢幕、狗狗和其他按鈕都藏起來；全班測驗結束後鎖在 QR 畫面，要老師的解除密碼 ──
+  let exam = false;
+  function unlockCode(code) {
+    const c = window.PuppyStamp ? window.PuppyStamp.code(QR_KEY, 'UNLOCK|' + code) : '000000';
+    return String(c).slice(-4);
+  }
+  function enterExam() {
+    exam = true;
+    document.body.classList.add('ty-exam');
+    goFullscreen();
+  }
+  function goFullscreen() {
+    try {
+      const el = document.documentElement;
+      if (!document.fullscreenElement && el.requestFullscreen) {
+        el.requestFullscreen().then(() => {
+          // Chrome／Edge 全螢幕時可以攔下 Win 鍵、Esc 等系統鍵（作業系統允許的才行）
+          try { if (navigator.keyboard && navigator.keyboard.lock) navigator.keyboard.lock().catch(() => {}); } catch (e) { /* 忽略 */ }
+        }).catch(() => {});
+      }
+    } catch (e) { /* 忽略 */ }
+  }
+  function leaveExam() {
+    exam = false;
+    document.body.classList.remove('ty-exam');
+    try { if (navigator.keyboard && navigator.keyboard.unlock) navigator.keyboard.unlock(); } catch (e) { /* 忽略 */ }
+    try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {}); } catch (e) { /* 忽略 */ }
+  }
+  function fsBarHtml() {
+    return exam ? '<button class="ty-fs-bar" id="tyFsBar" hidden>🖥 離開全螢幕了！按這裡回到全螢幕繼續</button>' : '';
+  }
+  function updateFsBar() {
+    const b = pane && pane.querySelector('#tyFsBar');
+    if (b) b.hidden = !exam || !!document.fullscreenElement || !document.fullscreenEnabled;
+  }
+  document.addEventListener('fullscreenchange', () => {
+    // 測驗進行中離開全螢幕：記一次可疑操作（老師在成績表的「亂按」欄看得到）
+    if (exam && !document.fullscreenElement && view === 'play' && run && run.test && Date.now() >= run.test.startAt) {
+      run.mash += 1;
+      run.redUntil = Date.now() + RED_MS;
+      run.redWhy = '離開全螢幕了，請按上面的按鈕回去';
+      renderStatus();
+    }
+    updateFsBar();
+  });
+
   function scrollTop() {
     try { pane.scrollIntoView({ block: 'start' }); window.scrollBy(0, -70); } catch (e) { /* 忽略 */ }
   }
@@ -558,6 +605,7 @@
     mode = info.mode;
     pendingTest = { info, self: !!self };
     view = 'ready';
+    enterExam();
     if (api.focus) api.focus(true);   // v3.7.5：準備畫面也讓狗狗躲到角落，不擋按鈕
     render();
     scrollTop();
@@ -601,13 +649,12 @@
     return ['green', '🟢 穩定練習中'];
   }
 
-  // 把按鍵換成「要比對的字」：英打看 ev.key；注音看實體按鍵代碼 ev.code
+  // 把按鍵換成「要比對的字」。v3.7.6：英打也只看「實際按下哪一個鍵」（ev.code），
+  // 所以開著中文輸入法、大寫鎖定、按著 Shift 都不影響判斷。
   function keyChar(ev) {
-    if (mode === 'zh') {
-      const k = CODE_KEY[ev.code] || (typeof ev.key === 'string' && ev.key.length === 1 ? ev.key.toLowerCase() : '');
-      return { phys: k, ch: ZH_OF_KEY[k] || '' };
-    }
-    return { phys: typeof ev.key === 'string' ? ev.key.toLowerCase() : '', ch: ev.key };
+    const k = CODE_KEY[ev.code] || (typeof ev.key === 'string' && ev.key.length === 1 ? ev.key.toLowerCase() : '');
+    if (mode === 'zh') return { phys: k, ch: ZH_OF_KEY[k] || '' };
+    return { phys: k, ch: k };
   }
 
   // 回傳 'ok'／'miss'／'ignored'／'mash'／'ime'／'start'（給自動測試用）
@@ -619,14 +666,13 @@
     }
     if (view !== 'play' || !run) return 'ignored';
     if (mode === 'cn') return 'ignored';
-    if (ev.ctrlKey || ev.altKey || ev.metaKey) return 'ignored';
+    // Ctrl／Alt／Win 組合鍵：擋掉瀏覽器的快速鍵（例如 Ctrl＋W 關分頁），不算對錯
+    if (ev.ctrlKey || ev.altKey || ev.metaKey || /^(Meta|OS|Alt|Control|ContextMenu)/.test(ev.code || '')) {
+      if (ev.preventDefault) ev.preventDefault();
+      return 'ignored';
+    }
     const now = Date.now();
     if (run.test && now < run.test.startAt) return 'ignored';
-    if (mode === 'en' && (ev.isComposing || ev.key === 'Process' || ev.keyCode === 229)) {
-      banner = '⚠ 現在是中文輸入法，請按一下 Shift（或 Ctrl＋空白鍵）切換到英文，再繼續打。';
-      renderBanner();
-      return 'ime';
-    }
     const { phys, ch } = keyChar(ev);
     if (!ch || (mode === 'en' && ch.length !== 1)) return 'ignored';
     if (ev.preventDefault) ev.preventDefault();
@@ -642,16 +688,13 @@
       return 'ignored';
     }
     run.repeatN = 0;
-    const caps = mode === 'en' && ev.getModifierState && ev.getModifierState('CapsLock');
-    const nb = caps ? '⚠ 大寫鎖定（Caps Lock）開著，請按一下 Caps Lock 關掉。' : '';
-    if (nb !== banner) { banner = nb; renderBanner(); }
     if (!run.started) { run.started = now; run.last = now; }
     run.activeMs += Math.min(GAP_CAP_MS, now - run.last);
     run.last = now;
 
     const want = run.text[run.pos];
     const inMash = now < run.redUntil;
-    if (ch === want || (caps && ch.toLowerCase() === want)) {
+    if (ch === want) {
       run.wrongStreak = 0;
       if (!inMash) {
         run.ok += 1;
@@ -784,6 +827,8 @@
       acc, rate, mash: run.mash, self: test.self, when: stampNow()
     };
     lastResult = Object.assign({ test: true, mode, info, xp, prevBest, newBest: score > prevBest && prevBest > 0, qr: qrPayload(res) }, res);
+    // 全班測驗：鎖在 QR 畫面（存起來，重新整理也一樣），要老師的解除密碼才能離開
+    if (!test.self) c.lock = { res, qr: lastResult.qr, xp, at: Date.now() };
     run = null;
     view = 'testresult';
     if (api.focus) api.focus(false);
@@ -986,6 +1031,7 @@
     const rec = common().tests[info.code];
     const best = storeOf(info.mode).best[`${info.mode}-${info.secs}s-${info.scope}`] || 0;
     return `
+      ${fsBarHtml()}
       <div class="card-box ty-ready">
         <h2>${self ? '🙋 自己挑戰' : '👩‍🏫 全班測驗'}</h2>
         <div class="ty-ready-code">測驗碼 <b>${info.code}</b></div>
@@ -1028,12 +1074,13 @@
   function playHtml() {
     const zh = mode === 'zh';
     return `
+      ${fsBarHtml()}
       <div class="card-box ty-play${zh ? ' zh' : ''}${run.test ? ' testing' : ''}">
         <div id="tyStatus" class="ty-status"></div>
         <div class="ty-head">
           <span class="ty-title">${esc(run.title)}</span>
           ${run.test ? '<span class="ty-timer" id="tyTimer">--:--</span><span class="ty-live" id="tyLive">打對 0</span>' : `<span class="ty-tip">💡 ${esc(run.tip)}</span>`}
-          <button class="btn btn-soft" id="tyQuit">✕ 離開</button>
+          ${run.test && !run.test.self ? '' : '<button class="btn btn-soft" id="tyQuit">✕ 離開</button>'}
         </div>
         <div id="tyBanner" class="ty-banner" hidden></div>
         <div class="ty-text${zh ? ' zh' : ''}${mode === 'cn' ? ' cn' : ''}" id="tyText">${textHtml()}</div>
@@ -1089,6 +1136,7 @@
     const r = lastResult;
     const who = r.self ? '' : `${r.g} 年級 ${r.c} 班 ${r.s} 號`;
     return `
+      ${fsBarHtml()}
       <div class="card-box ty-result ty-test-result">
         <h2>${r.self ? '🙋 自己挑戰' : '👩‍🏫 全班測驗'}結束！</h2>
         ${who ? `<div class="ty-who-big">${who}</div>` : ''}
@@ -1103,16 +1151,21 @@
           <div class="${r.mash ? 'bad' : ''}"><b>${r.mash}</b><span>${r.mode === 'cn' ? '可疑操作' : '亂按次數'}</span></div>
         </div>
         ${r.xp ? `<p class="section-sub">獲得 +${r.xp} 經驗值</p>` : ''}
-        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:10px;">
-          <button class="btn btn-soft" id="tyHome">完成</button>
-          ${r.self ? '<button class="btn btn-orange" id="tyAgainSelf">🔁 再挑戰一次</button>' : ''}
-        </div>
+        ${r.self ? `<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:10px;">
+          <button class="btn btn-soft" id="tyDone">完成</button>
+          <button class="btn btn-orange" id="tyAgainSelf">🔁 再挑戰一次</button>
+        </div>` : `<div class="ty-unlock">
+          <b>🔒 等老師收完成績，輸入老師說的「解除密碼」才能離開</b>
+          <div class="ty-unlock-row"><input id="tyUnlock" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="____" aria-label="解除密碼">
+          <button class="btn btn-green" id="tyUnlockGo">解除</button></div>
+          <div id="tyUnlockMsg" class="ty-unlock-msg"></div>
+        </div>`}
       </div>`;
   }
 
   function render() {
     if (!pane) return;
-    document.body.classList.toggle('ty-playing', view === 'play' && pane.offsetParent !== null);
+    document.body.classList.toggle('ty-playing', view === 'play' && pane.getClientRects().length > 0);
     const html = { play: playHtml, result: resultHtml, testsetup: setupHtml, ready: readyHtml, testresult: testResultHtml }[view];
     pane.innerHTML = html ? html() : homeHtml();
     pane.querySelectorAll('[data-lesson]').forEach(b => b.addEventListener('click', () => startLesson(b.dataset.lesson)));
@@ -1120,9 +1173,30 @@
     const on = (id, fn) => { const el = pane.querySelector('#' + id); if (el) el.addEventListener('click', fn); };
     on('tyQuit', quit);
     on('tyHome', () => { view = 'home'; render(); });
-    on('tyBack', () => { view = 'home'; pendingTest = null; setupMsg = ''; if (api.focus) api.focus(false); render(); });
+    on('tyBack', () => { view = 'home'; pendingTest = null; setupMsg = ''; leaveExam(); if (api.focus) api.focus(false); render(); });
     on('tyTestBtn', () => { view = 'testsetup'; setupMsg = ''; render(); });
     on('tyStart', startTest);
+    on('tyFsBar', goFullscreen);
+    on('tyDone', () => { leaveExam(); view = 'home'; render(); });
+    const unl = pane.querySelector('#tyUnlock');
+    if (unl) {
+      const tryUnlock = () => {
+        if (unl.value.trim() === unlockCode(lastResult.code)) {
+          delete common().lock;
+          api.save();
+          leaveExam();
+          view = 'home';
+          render();
+        } else {
+          const m = pane.querySelector('#tyUnlockMsg');
+          if (m) m.textContent = '密碼不對，請等老師說。';
+          unl.value = '';
+        }
+      };
+      pane.querySelector('#tyUnlockGo').addEventListener('click', tryUnlock);
+      unl.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.stopPropagation(); tryUnlock(); } });
+    }
+    updateFsBar();
     on('tyAgainSelf', () => {
       const i = lastResult.info;
       prepareTest(makeCode(i.mode, i.secs, i.scope), true);
@@ -1286,7 +1360,7 @@
   }
 
   function onKeyDown(ev) {
-    if (!pane || pane.offsetParent === null) return;
+    if (!pane || !pane.getClientRects().length) return;
     const tag = ev.target && ev.target.tagName;
     if ((tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') && view !== 'play') return;
     handleKey(ev);
@@ -1297,6 +1371,16 @@
     mount(el, hooks) {
       pane = el;
       api = hooks;
+      // 全班測驗結束還沒解除（例如學生按了重新整理）：直接回到 QR 畫面
+      const lk = common().lock;
+      const li = lk && lk.res && parseCode(lk.res.code);
+      if (li) {
+        mode = li.mode;
+        lastResult = Object.assign({ test: true, mode: li.mode, info: li, xp: lk.xp || 0, qr: lk.qr }, lk.res);
+        view = 'testresult';
+        exam = true;
+        document.body.classList.add('ty-exam');
+      }
       window.addEventListener('keydown', onKeyDown);
       if (!ticker) {
         ticker = setInterval(() => {
@@ -1309,6 +1393,8 @@
     show() { if (view === 'play' && api.focus) api.focus(true); render(); },
     hide() { document.body.classList.remove('ty-playing'); if (view === 'play' && api.focus) api.focus(false); },
     isPlaying() { return view === 'play' || view === 'ready'; },   // v3.7.5：準備畫面也算，狗狗會躲到角落
+    isExam() { return exam; },
+    unlockCode,
     // 給 teacher.html 用（同一套測驗碼）
     parseCode, makeCode, ZH_SCOPES, CN_SCOPES, TIMES, timeLabel, DEFAULT_SECS, LETTER_LESSONS, QR_KEY,
     // 自動測試用
@@ -1316,7 +1402,7 @@
       LETTER_LESSONS, ZH_LESSONS, FINGER_OF, LETTERS_BEFORE, ZH_OF_KEY, KEY_OF_ZH, CODE_KEY, MODES,
       CN_LESSONS, cnText, cnCompare, cnEvaluate, TIMES,
       makeText, makeRun, startLesson, handleKey, starsFor, unlockedIndex, parseCode, makeCode, testText, scoreOf, qrPayload,
-      prepareTest, startTest, finishTest, common,
+      prepareTest, startTest, finishTest, common, unlockCode, isExam: () => exam,
       run: () => run, result: () => lastResult, view: () => view, status, quit, data,
       setRun: patch => Object.assign(run, patch), setMode: m => { mode = m; }
     }

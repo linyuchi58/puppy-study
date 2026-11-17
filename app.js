@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.7.6';
-  const APP_BUILD = '20261117-6';
+  const APP_VERSION = 'v3.8.0';
+  const APP_BUILD = '20261117-7';
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
   const STORAGE_KEY = 'puppy_study_save_v2' + (SELFTEST ? '_selftest' : '');
@@ -2319,6 +2319,8 @@
 
   // ── 切換分頁與事件綁定 ──
   function switchTab(tab) {
+    // v3.7.6：打字測驗模式中（含測驗結束等老師解除），不能切到別的分頁
+    if (tab !== 'typing' && window.PuppyTyping && window.PuppyTyping.isExam && window.PuppyTyping.isExam()) tab = 'typing';
     activeTab = tab;
     if (window.PuppyTyping && activeTab === 'typing' && tab !== 'typing') window.PuppyTyping.hide();
     ['english', 'checkin', 'typing', 'dex', 'transfer'].forEach(t => {
@@ -2422,7 +2424,7 @@
   updatePetSidebar();
   greetWithMemory();
   if (saveWarning) petSay(saveWarning, 'normal');
-  switchTab(location.hash === '#typing' ? 'typing' : 'english');
+  switchTab(location.hash === '#typing' || (window.PuppyTyping && window.PuppyTyping.isExam && window.PuppyTyping.isExam()) ? 'typing' : 'english');
   setInterval(() => { tickFullness(); updatePetSidebar(); }, 60000);
   // v3.3.2：離開頁面時把今天的自動備份更新成最新；並請瀏覽器不要自動清掉這個網站的資料
   document.addEventListener('visibilitychange', () => {
@@ -2549,8 +2551,11 @@
         const want = r.text[0];
         const wrong = want === 'f' ? 'k' : 'f';
         ok(key(wrong) === 'miss' && T.run().pos === 0 && T.run().miss === 1, '打錯不會往前，記一次錯');
-        ok(key('ㄅ', { key: 'Process', keyCode: 229 }) === 'ime', '中文輸入法開著時會提醒切換');
-        ok(key(want) === 'ok' && T.run().pos === 1, '打對往前一格');
+        ok(key('Process', { keyCode: 229, code: wrong === 'k' ? 'KeyK' : 'KeyF' }) === 'miss' && T.run().miss === 2, '開著中文輸入法也照實際按的鍵判斷（按錯算錯）');
+        ok(key('F', { code: 'KeyD', shiftKey: true }) !== 'ok' || want === 'd', '只看實際按的鍵，不看螢幕上打出來的字');
+        T.setRun({ wrongTimes: [], wrongStreak: 0 });
+        ok(key('w', { ctrlKey: true, code: 'KeyW' }) === 'ignored' && key('Meta', { code: 'MetaLeft' }) === 'ignored', 'Ctrl、Win 組合鍵不算對錯，也會被擋下');
+        ok(key('Process', { keyCode: 229, code: 'Key' + want.toUpperCase() }) === 'ok' && T.run().pos === 1, '開著中文輸入法、按對的鍵也算對，往前一格');
         T.setRun({ wrongTimes: [], wrongStreak: 0 });
         let res = '';
         for (let i = 0; i < 8; i++) res = key(T.run().text[T.run().pos] === 'f' ? 'k' : 'f');
@@ -2604,6 +2609,18 @@
         T.finishTest();
         const tr = T.result();
         ok(tr.test && tr.ok === 19 && tr.miss === 1 && tr.score === 18 && tr.xp === 4 && state.stars === s1, '測驗結束：19 對 1 錯得 18 分、+4 經驗值、不給星星');
+        // v3.7.6：全班測驗結束鎖在 QR 畫面，要解除密碼
+        const tyP = document.getElementById('tab-typing');
+        ok(T.isExam() && document.body.classList.contains('ty-exam') && !!T.common().lock && tyP.querySelector('#tyUnlock') && !tyP.querySelector('#tyDone'), '全班測驗結束：停在 QR 畫面、要輸入解除密碼');
+        ok(/^\d{4}$/.test(T.unlockCode('120101')) && T.unlockCode('120101') !== T.unlockCode('120102'), '解除密碼 4 位數，每組測驗碼都不一樣');
+        tyP.querySelector('#tyUnlock').value = '0000' === T.unlockCode('120101') ? '1111' : '0000';
+        tyP.querySelector('#tyUnlockGo').click();
+        ok(T.view() === 'testresult' && /不對/.test(tyP.querySelector('#tyUnlockMsg').textContent), '密碼錯誤不能離開');
+        switchTab('english');
+        ok(activeTab === 'typing', '測驗模式中不能切到別的分頁');
+        tyP.querySelector('#tyUnlock').value = T.unlockCode('120101');
+        tyP.querySelector('#tyUnlockGo').click();
+        ok(T.view() === 'home' && !T.isExam() && !T.common().lock && !document.body.classList.contains('ty-exam'), '輸入正確的解除密碼才回到一般練習');
         const parts = tr.qr.split('|');
         ok(parts.length === 15 && parts[0] === 'PZT1' && parts[1] === '120101' && parts[2] === '4' && parts[3] === '3' && parts[4] === '12' && parts[5] === '1' && parts[6] === '18', 'QR 內容有測驗碼、年班座號、次數、得分');
         ok(window.PuppyStamp.code(T.QR_KEY || window.PuppyTyping.QR_KEY, parts.slice(0, 14).join('|')) === parts[14], 'QR 檢查碼正確（老師端可以驗證）');
