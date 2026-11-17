@@ -551,6 +551,7 @@
     mode = info.mode;
     pendingTest = { info, self: !!self };
     view = 'ready';
+    if (api.focus) api.focus(true);   // v3.7.5：準備畫面也讓狗狗躲到角落，不擋按鈕
     render();
     scrollTop();
     return true;
@@ -943,9 +944,10 @@
             <h3>👩‍🏫 全班測驗</h3>
             <p class="section-sub">輸入老師給的 6 位數測驗碼。同一組碼，全班的題目一模一樣。</p>
             <input id="tyCode" class="ty-code" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="______" aria-label="測驗碼">
+            <div id="tyCodeInfo" class="ty-code-info" hidden></div>
             <button class="btn btn-green" id="tyCodeGo" style="width:100%;margin-top:8px;">輸入好了</button>
           </div>
-          <div class="ty-setup-box">
+          <div class="ty-setup-box" id="tySelfBox">
             <h3>🙋 自己挑戰</h3>
             <p class="section-sub">規則和全班測驗一樣，程式隨機出題，可以挑戰自己的最高分。</p>
             <div class="ty-self-row">
@@ -991,8 +993,9 @@
         <p class="section-sub">${info.mode === 'cn'
           ? '請先把輸入法切到<b>微軟注音（中文）</b>。打錯可以繼續往下打，最後一起算；標點要用全形，不能貼上。'
           : '題目不需要按空白鍵；每 5 個字之間的間隔只是方便看。打錯不會往前跳。'}<br>得分＝打對的字數 × 正確率。</p>
-        <button class="btn btn-green ty-start" id="tyStart">準備好了！按 Enter 開始</button>
-        <button class="btn btn-soft" id="tyBack" style="margin-top:8px;">← 取消</button>
+        ${self ? '' : `<div class="ty-wait-teacher" role="alert">✋ 準備好了！等候老師說開始之後，才能按鈕開始挑戰！</div>`}
+        <button class="ty-start-big${self ? ' self' : ''}" id="tyStart">${self ? '▶ 準備好了！開始挑戰' : '🏁 老師說開始了！開始挑戰'}<small>（也可以按 Enter）</small></button>
+        <button class="btn btn-soft" id="tyBack" style="margin-top:10px;">← 取消</button>
       </div>`;
   }
 
@@ -1110,7 +1113,7 @@
     const on = (id, fn) => { const el = pane.querySelector('#' + id); if (el) el.addEventListener('click', fn); };
     on('tyQuit', quit);
     on('tyHome', () => { view = 'home'; render(); });
-    on('tyBack', () => { view = 'home'; pendingTest = null; setupMsg = ''; render(); });
+    on('tyBack', () => { view = 'home'; pendingTest = null; setupMsg = ''; if (api.focus) api.focus(false); render(); });
     on('tyTestBtn', () => { view = 'testsetup'; setupMsg = ''; render(); });
     on('tyStart', startTest);
     on('tyAgainSelf', () => {
@@ -1145,6 +1148,29 @@
       prepareTest(info.code, false);
     };
     pane.querySelector('#tyCodeGo').addEventListener('click', go);
+    // v3.7.5：輸入測驗碼時，馬上顯示老師設定好的內容（鎖定、不能改），並先收起「自己挑戰」
+    const info = pane.querySelector('#tyCodeInfo');
+    const selfBox = pane.querySelector('#tySelfBox');
+    const grid = pane.querySelector('.ty-setup-grid');
+    const preview = () => {
+      const v = codeEl.value.replace(/\D/g, '');
+      if (v !== codeEl.value) codeEl.value = v;
+      selfBox.hidden = v.length > 0;
+      grid.classList.toggle('one', v.length > 0);
+      if (v.length < 6) {
+        info.hidden = v.length === 0;
+        info.className = 'ty-code-info wait';
+        info.textContent = v.length ? `還差 ${6 - v.length} 碼` : '';
+        return;
+      }
+      const c = parseCode(v);
+      info.hidden = false;
+      if (!c) { info.className = 'ty-code-info bad'; info.textContent = '⚠ 這組測驗碼不對，請再看一次黑板。'; return; }
+      info.className = 'ty-code-info ok';
+      info.innerHTML = `<b>🔒 老師已經設定好了（不能改）</b>
+        <span>科目：<b>${SUBJ[c.mode]}</b></span><span>時間：<b>${c.minutes} 分鐘</b></span><span>範圍：<b>${esc(c.scopeText)}</b></span>`;
+    };
+    codeEl.addEventListener('input', preview);
     codeEl.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.stopPropagation(); go(); } });
     const modeSel = pane.querySelector('#tySelfMode');
     const en = pane.querySelector('#tySelfScopeEn');
@@ -1275,7 +1301,7 @@
     },
     show() { if (view === 'play' && api.focus) api.focus(true); render(); },
     hide() { document.body.classList.remove('ty-playing'); if (view === 'play' && api.focus) api.focus(false); },
-    isPlaying() { return view === 'play'; },
+    isPlaying() { return view === 'play' || view === 'ready'; },   // v3.7.5：準備畫面也算，狗狗會躲到角落
     // 給 teacher.html 用（同一套測驗碼）
     parseCode, makeCode, ZH_SCOPES, CN_SCOPES, MINUTES, LETTER_LESSONS, QR_KEY,
     // 自動測試用

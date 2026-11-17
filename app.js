@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.7.4';
-  const APP_BUILD = '20261117-3';
+  const APP_VERSION = 'v3.7.5';
+  const APP_BUILD = '20261117-5';
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
   const STORAGE_KEY = 'puppy_study_save_v2' + (SELFTEST ? '_selftest' : '');
@@ -2590,6 +2590,7 @@
         T.common().who = { g: 4, c: 3, s: 12 };
         T.setMode('en');
         ok(T.prepareTest('101001', false) === true && T.view() === 'ready', '選好座號、輸入測驗碼後進入準備畫面');
+        ok(/等候老師說開始之後，才能按鈕開始挑戰/.test((document.querySelector('#tab-typing .ty-wait-teacher') || {}).textContent || '') && window.PuppyTyping.isPlaying(), '準備畫面有超明顯的「等候老師說開始」，狗狗躲到角落');
         ok(T.handleKey({ key: 'Enter', preventDefault() {} }) === 'start' && T.view() === 'play' && T.run().test.attempt === 1, '按 Enter 開始，記第 1 次');
         ok(key(T.run().text[0]) === 'ignored', '倒數 3 秒內按鍵不算');
         T.setRun({ test: Object.assign(T.run().test, { startAt: Date.now() - 1 }) });
@@ -2670,6 +2671,20 @@
         const tyPane = document.getElementById('tab-typing');
         ok(tyPane.querySelectorAll('.ty-lesson[disabled]').length === 0 && tyPane.querySelector('.ty-lesson.pick').dataset.lesson === 'L15', '打字關卡全部可以點，英打預設停在總複習');
         ok(tyPane.querySelector('[data-lesson="L01"]').classList.contains('done'), '完成的關卡顯示成「已完成」樣式');
+        // v3.7.5：輸入測驗碼時顯示老師設定（鎖定），並收起自己挑戰
+        const whoBak = JSON.stringify(T.common().who);
+        T.common().who = { g: 0, c: 0, s: 0 };
+        T.prepareTest('205123', false);
+        const codeIn = tyPane.querySelector('#tyCode');
+        codeIn.value = '20512'; codeIn.dispatchEvent(new Event('input'));
+        ok(/還差 1 碼/.test(tyPane.querySelector('#tyCodeInfo').textContent) && tyPane.querySelector('#tySelfBox').hidden, '輸入測驗碼時收起「自己挑戰」，提示還差幾碼');
+        codeIn.value = '205123'; codeIn.dispatchEvent(new Event('input'));
+        const ci = tyPane.querySelector('#tyCodeInfo').textContent;
+        ok(/不能改/.test(ci) && /英打/.test(ci) && /2 分鐘/.test(ci) && /第 1～5 關/.test(ci), '輸入完 6 碼馬上顯示老師的設定：' + ci.replace(/\s+/g, ' ').trim());
+        codeIn.value = ''; codeIn.dispatchEvent(new Event('input'));
+        ok(!tyPane.querySelector('#tySelfBox').hidden, '清掉測驗碼，「自己挑戰」又出現');
+        T.common().who = JSON.parse(whoBak);
+        T.quit();
         T.quit();
       }
       // 每日自動備份

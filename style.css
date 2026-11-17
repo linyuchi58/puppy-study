@@ -890,3 +890,34 @@ body { padding-bottom: 96px; }
 .ty-punct-grid span { white-space: nowrap; gap: 4px; }
 .ty-punct-grid i { width: 1.7em; font-size: 1.05rem; }
 .ty-punct small { font-size: 0.74rem; }
+
+/* ── v3.7.5 輸入測驗碼時顯示老師的設定（鎖定） ── */
+.ty-setup-grid.one { grid-template-columns: 1fr; max-width: 520px; margin: 0 auto; }
+.ty-setup-box[hidden] { display: none; }
+.ty-code-info { margin-top: 8px; border-radius: 12px; padding: 8px 12px; font-size: 0.95rem; }
+.ty-code-info[hidden] { display: none; }
+.ty-code-info.wait { color: var(--muted); background: #f6f1eb; text-align: center; }
+.ty-code-info.bad { color: var(--red); background: var(--red-l, #fde8e6); font-weight: 800; }
+.ty-code-info.ok { background: #eef6ff; border: 2px solid #9cc7ee; display: grid; gap: 2px; }
+.ty-code-info.ok > b { color: #2b6cb0; }
+
+/* ── v3.7.5 準備畫面：超級明顯的「等老師說開始」 ── */
+.ty-wait-teacher {
+  margin: 14px auto 12px; max-width: 640px; padding: 18px 20px; border-radius: 20px;
+  background: #fff4c2; border: 4px solid #f2b705; color: #6b4a00;
+  font-size: clamp(1.35rem, 2.6vw, 1.9rem); font-weight: 900; line-height: 1.45; text-align: center;
+  box-shadow: 0 6px 0 #d99a00, 0 10px 24px rgba(242, 183, 5, 0.35);
+  animation: tyWaitPulse 1.6s ease-in-out infinite;
+}
+@keyframes tyWaitPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.025); } }
+@media (prefers-reduced-motion: reduce) { .ty-wait-teacher { animation: none; } }
+.ty-start-big {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; width: min(640px, 100%); margin: 6px auto 0;
+  padding: 16px 20px; border: 0; border-radius: 20px; cursor: pointer; font-family: inherit;
+  font-size: clamp(1.3rem, 2.4vw, 1.7rem); font-weight: 900; color: #fff;
+  background: linear-gradient(135deg, #e5534b, #f28a3c); box-shadow: 0 6px 0 #b8402f;
+}
+.ty-start-big.self { background: linear-gradient(135deg, #2fa86b, #3cc282); box-shadow: 0 6px 0 #1f7a4f; }
+.ty-start-big small { font-size: 0.85rem; font-weight: 700; opacity: 0.9; }
+.ty-start-big:active { transform: translateY(4px); box-shadow: 0 2px 0 #b8402f; }
+.ty-start-big:focus-visible { outline: 4px solid #3d8fd6; outline-offset: 3px; }
