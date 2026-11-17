@@ -353,11 +353,14 @@
   }
 
   // 給老師掃描的成績資料：PZT1|測驗碼|年|班|座|第幾次|得分|對|錯|正確率×10|每分鐘|亂按|自己挑戰|時間|檢查碼
+  // v3.8.1：QR 內容縮短，而且只用數字、大寫字母和點（QR 的「英數模式」），
+  //   QR 的格子少很多、每格變大，老師的手機遠一點、斜一點也掃得到。
+  //   Z2.測驗碼.年.班.座.第幾次.打對.打錯.亂按.自己挑戰.時間(yyMMddHHmm).檢查碼
+  //   得分、正確率、速度都可以從打對／打錯和測驗碼算回來，所以不放進去。
   function qrPayload(r) {
-    const body = ['PZT1', r.code, r.g, r.c, r.s, r.attempt, r.score, r.ok, r.miss, Math.round(r.acc * 10), r.rate, r.mash,
-      r.self ? 1 : 0, r.when].join('|');
+    const body = ['Z2', r.code, r.g, r.c, r.s, r.attempt, r.ok, r.miss, r.mash, r.self ? 1 : 0, String(r.when).slice(-10)].join('.');
     const chk = window.PuppyStamp ? window.PuppyStamp.code(QR_KEY, body) : '000000';
-    return body + '|' + chk;
+    return body + '.' + chk;
   }
 
   // ── 狀態 ──────────────────────────────────────────────────
@@ -1049,6 +1052,7 @@
         ${self ? '' : `<div class="ty-wait-teacher" role="alert">✋ 準備好了！等候老師說開始之後，才能按鈕開始挑戰！</div>`}
         <button class="ty-start-big${self ? ' self' : ''}" id="tyStart">${self ? '▶ 準備好了！開始挑戰' : '🏁 老師說開始了！開始挑戰'}<small>（也可以按 Enter）</small></button>
         <button class="btn btn-soft" id="tyBack" style="margin-top:10px;">← 取消</button>
+        <div class="ty-ver">版本 ${esc(window.PUPPY_VERSION || '')}</div>
       </div>`;
   }
 
@@ -1123,10 +1127,10 @@
 
   function qrSvg(text) {
     try {
-      const qr = window.qrcode(0, 'M');
-      qr.addData(text);
+      const qr = window.qrcode(0, 'L');
+      qr.addData(text, /^[0-9A-Z .:$%*+\/-]+$/.test(text) ? 'Alphanumeric' : 'Byte');
       qr.make();
-      return qr.createSvgTag({ cellSize: 5, margin: 8, scalable: true });
+      return qr.createSvgTag({ cellSize: 8, margin: 4, scalable: true });
     } catch (e) {
       return '';
     }

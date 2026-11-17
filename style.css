@@ -943,3 +943,5 @@ body.ty-exam .modal-backdrop { z-index: 600; }
 .ty-unlock-row { display: flex; gap: 8px; justify-content: center; }
 .ty-unlock-row input { width: 9em; font: inherit; font-size: 1.6rem; font-weight: 900; letter-spacing: 0.4em; text-align: center; padding: 6px; border: 3px solid #d99a00; border-radius: 12px; }
 .ty-unlock-msg { min-height: 1.4em; margin-top: 6px; color: var(--red); font-weight: 800; }
+
+.ty-ver { text-align: center; color: var(--muted); font-size: 0.8rem; margin-top: 8px; }

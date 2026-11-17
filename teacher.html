@@ -36,6 +36,9 @@
     .scan-view { overflow: hidden; border-radius: 14px; background: #222; }
     .scan-view video { transform-origin: center center; transition: transform .15s; }
     .scan-count { text-align: center; font-weight: 800; color: var(--green-d); min-height: 1.4em; }
+    .unlock-top { border-color: #f2b705; background: #fffbea; }
+    .unlock-big { font-size: 1.05rem; font-weight: 800; color: #6b4a00; text-align: center; margin: 6px 0 10px; }
+    .unlock-big b { display: block; font-size: 3.4rem; letter-spacing: 0.3em; color: #8a4b00; line-height: 1.2; }
     .unlock-box { background: #fff4c2; border: 3px solid #f2b705; border-radius: 14px; padding: 8px 12px; font-weight: 800; color: #6b4a00; margin: 8px 0; }
     .unlock-box b { font-size: 1.6rem; letter-spacing: 0.25em; color: #8a4b00; }
     .recent { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -56,7 +59,8 @@
 </head>
 <body>
   <main>
-    <h1>🐶 學習小伙伴｜教師頁（打字測驗）</h1>
+    <h1>🐶 學習小伙伴｜教師頁（打字測驗）<small id="tVer" style="font-size:.7rem;color:var(--muted);font-weight:700;"></small></h1>
+    <p class="note noprint" style="margin-top:-6px;">測驗前請學生先按一次 <b>F5</b> 重新整理；學生準備畫面最下面的版本，要和這裡的建置編號一樣。</p>
     <div class="tabs noprint">
       <button id="tabMake" class="on">① 產生測驗碼</button>
       <button id="tabCollect">② 收成績（直接掃描，不用測驗碼）</button>
@@ -101,6 +105,12 @@
     </section>
 
     <section id="paneCollect" hidden>
+      <div class="card noprint unlock-top">
+        <h2>🔓 解除密碼</h2>
+        <div id="unlockBig" class="unlock-big">掃到第一位學生的 QR Code，這裡就會出現解除密碼</div>
+        <div class="row"><input id="lookCode" inputmode="numeric" maxlength="6" placeholder="輸入測驗碼查密碼" style="flex:1;min-width:0;"><button id="lookGo">查</button></div>
+        <p class="note">忘記測驗碼也沒關係：看任何一位學生畫面上「測驗碼」那 6 位數，輸入上面就查得到。</p>
+      </div>
       <div class="card noprint">
         <h2>掃描學生畫面上的 QR Code</h2>
         <p class="note" style="margin-top:0;">不用先輸入測驗碼，掃到什麼就收什麼；畫面裡同時有好幾個 QR Code 也會一起收（Android 手機最快，iPhone 會一個一個抓）。</p>
@@ -149,9 +159,10 @@
     </section>
   </main>
 
-  <script src="./stamp.js"></script>
-  <script src="./typing.js"></script>
-  <script src="./jsqr.js"></script>
+  <script src="./stamp.js?v=20261117-8"></script>
+  <script src="./typing.js?v=20261117-8"></script>
+  <script src="./jsqr.js?v=20261117-8"></script>
+  <script src="./zxing_reader.js?v=20261117-8"></script>
   <script>
   (function () {
     'use strict';
@@ -159,6 +170,7 @@
     const STORE = 'puppyStudy.teacher.v1' + (/[?&]apptest=1/.test(location.search) ? '.selftest' : '');
     const $ = id => document.getElementById(id);
     const SUBJ = { en: '英打', zh: '注音鍵位', cn: '中文打字' };
+    try { $('tVer').textContent = '　建置 ' + (document.querySelector('script[src*="typing.js"]').src.split('v=')[1] || ''); } catch (e) { /* 忽略 */ }
     let rows = [];
     try { rows = JSON.parse(localStorage.getItem(STORE) || '[]'); if (!Array.isArray(rows)) rows = []; } catch (e) { rows = []; }
     function save() { try { localStorage.setItem(STORE, JSON.stringify(rows)); } catch (e) { /* 忽略 */ } }
@@ -236,14 +248,44 @@
 
     // ── ② 收成績 ──
     // 檢查一筆 QR 內容，正確就加入；回傳 [成功?, 訊息]
-    function addPayload(text) {
-      const p = String(text || '').trim().split('|');
-      if (p.length !== 15 || p[0] !== 'PZT1') return [false, '這不是學習小伙伴的成績 QR Code'];
-      if (window.PuppyStamp.code(PT.QR_KEY, p.slice(0, 14).join('|')) !== p[14]) return [false, 'QR Code 檢查碼不對（可能被改過）'];
-      const info = PT.parseCode(p[1]);
-      if (!info) return [false, '測驗碼不對'];
+    // 解除密碼：掃到 QR 或輸入測驗碼就顯示（老師忘記測驗碼也查得到）
+    function showUnlockFor(code) {
+      const info = PT.parseCode(code);
+      if (!info) return false;
+      $('unlockBig').innerHTML = `測驗碼 ${esc(code)}（${SUBJ[info.mode]} ${info.timeText}）的解除密碼<b>${PT.unlockCode(code)}</b>收完成績後唸給學生聽`;
+      return true;
+    }
+    $('lookGo').onclick = () => { if (!showUnlockFor($('lookCode').value.trim())) $('unlockBig').textContent = '這不是正確的測驗碼，請看學生畫面上的 6 位數'; };
+    $('lookCode').addEventListener('keydown', ev => { if (ev.key === 'Enter') $('lookGo').onclick(); });
+
+    // 讀一筆 QR：新版（v3.8.1 起）Z2.… 和舊版 PZT1|… 都收
+    function parsePayload(text) {
+      const t = String(text || '').trim();
+      if (/^Z2\./.test(t)) {
+        const p = t.split('.');
+        if (p.length !== 12) return [null, '這不是學習小伙伴的成績 QR Code'];
+        if (window.PuppyStamp.code(PT.QR_KEY, p.slice(0, 11).join('.')) !== p[11]) return [null, 'QR Code 檢查碼不對（可能被改過）'];
+        const info = PT.parseCode(p[1]);
+        if (!info) return [null, '測驗碼不對'];
+        const n = i => +p[i] || 0;
+        const ok = n(6), miss = n(7), tot = ok + miss;
+        return [{
+          code: p[1], g: n(2), c: n(3), s: n(4), attempt: n(5), ok, miss, mash: n(8), self: p[9] === '1', when: '20' + p[10],
+          score: tot ? Math.round(ok * ok / tot) : 0, acc: tot ? Math.round(ok / tot * 1000) / 10 : 0,
+          rate: Math.round(info.mode === 'en' ? ok / 5 / info.minutes : ok / info.minutes)
+        }];
+      }
+      const p = t.split('|');
+      if (p.length !== 15 || p[0] !== 'PZT1') return [null, '這不是學習小伙伴的成績 QR Code'];
+      if (window.PuppyStamp.code(PT.QR_KEY, p.slice(0, 14).join('|')) !== p[14]) return [null, 'QR Code 檢查碼不對（可能被改過）'];
+      if (!PT.parseCode(p[1])) return [null, '測驗碼不對'];
       const n = i => +p[i] || 0;
-      const r = { code: p[1], g: n(2), c: n(3), s: n(4), attempt: n(5), score: n(6), ok: n(7), miss: n(8), acc: n(9) / 10, rate: n(10), mash: n(11), self: p[12] === '1', when: p[13] };
+      return [{ code: p[1], g: n(2), c: n(3), s: n(4), attempt: n(5), score: n(6), ok: n(7), miss: n(8), acc: n(9) / 10, rate: n(10), mash: n(11), self: p[12] === '1', when: p[13] }];
+    }
+    function addPayload(text) {
+      const [r, err] = parsePayload(text);
+      if (!r) return [false, err];
+      showUnlockFor(r.code);
       if (r.self) return [false, '這是「自己挑戰」的成績，不是全班測驗，沒有收進表格'];
       if (!(r.g && r.c && r.s)) return [false, '這筆沒有年級、班級或座號'];
       const i = rows.findIndex(x => x.code === r.code && x.g === r.g && x.c === r.c && x.s === r.s);
@@ -365,13 +407,24 @@
     let zoom = 1;
     let hwZoom = null;
     let detector = null;
+    // v3.8.1：主要用 zxing-wasm（一張畫面可以同時認出很多個 QR，又快）；載入失敗才用手機內建或 jsQR
+    let zx = null;
+    try {
+      if (window.ZXingWASM && window.WebAssembly) {
+        window.ZXingWASM.prepareZXingModule({
+          overrides: { locateFile: (path, prefix) => (path.endsWith('.wasm') ? './zxing_reader.wasm?v=20261117-8' : prefix + path) },
+          fireImmediately: true
+        }).then(() => { zx = window.ZXingWASM; }).catch(() => { zx = null; });
+      }
+    } catch (e) { zx = null; }
+    const ZX_OPT = { formats: ['QRCode'], maxNumberOfSymbols: 30, tryHarder: true };
     let busy = false;
     let frameN = 0;
     const seen = new Map();   // QR 內容 → 上次處理的時間（同一個 QR 3 秒內不重複處理）
     async function startCam() {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { flash(false, '這個瀏覽器不能開相機，請改用手動貼上'); return; }
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 }, focusMode: 'continuous' }, audio: false });
       } catch (e) {
         flash(false, '沒辦法開啟相機（可能沒有允許使用相機）');
         return;
@@ -455,7 +508,7 @@
       const sx = (v.videoWidth - sw) / 2;
       const sy = (v.videoHeight - sh) / 2;
       const c = $('canvas');
-      const w = Math.min(1280, Math.round(sw * Math.min(2, dz)));
+      const w = Math.min(zx ? 1280 : 960, Math.round(sw * Math.min(2, dz)));
       const h = Math.round(sh * w / sw);
       c.width = w;
       c.height = h;
@@ -471,9 +524,10 @@
       const full = f.ctx.getImageData(0, 0, f.w, f.h);
       const q = window.jsQR(full.data, f.w, f.h, { inversionAttempts: 'dontInvert' });
       if (q && q.data) out.push(q.data);
-      // 每個畫面輪流找 3 個小區塊，避免手機太燙
-      for (let k = 0; k < 3; k++) {
-        const t = TILES[1 + ((frameN * 3 + k) % (TILES.length - 1))];
+      // 整張找到了就不再切小塊；沒找到才輪流找 2 個小區塊（v3.8.1：減少每張的計算量，反應更快）
+      if (out.length && frameN % 3) return out;
+      for (let k = 0; k < 2; k++) {
+        const t = TILES[1 + ((frameN * 2 + k) % (TILES.length - 1))];
         const x = Math.floor(t[0] * f.w), y = Math.floor(t[1] * f.h);
         const w = Math.min(f.w - x, Math.ceil(t[2] * f.w)), h = Math.min(f.h - y, Math.ceil(t[3] * f.h));
         if (w < 60 || h < 60) continue;
@@ -492,10 +546,18 @@
         try {
           const f = grabFrame();
           let texts = [];
-          if (detector) {
-            try { texts = (await detector.detect(f.c)).map(b => b.rawValue); } catch (e) { detector = null; }
+          let done = false;
+          if (zx) {
+            try {
+              const img = f.ctx.getImageData(0, 0, f.w, f.h);
+              texts = (await zx.readBarcodes(img, ZX_OPT)).filter(r => r.isValid).map(r => r.text);
+              done = true;
+            } catch (e) { zx = null; }
           }
-          if (!detector) texts = jsqrScan(f);
+          if (!done && detector) {
+            try { texts = (await detector.detect(f.c)).map(b => b.rawValue); done = true; } catch (e) { detector = null; }
+          }
+          if (!done) texts = jsqrScan(f);
           if (texts.length) handleFound(texts);
         } catch (e) { /* 忽略這一張 */ }
         busy = false;
@@ -507,10 +569,15 @@
 
     renderTable();
     renderRecent();
+    {
+      const latest = rows.slice().sort((a, b) => String(b.when).localeCompare(String(a.when)))[0];
+      const first = (latest && latest.code) || recentCodes()[0];
+      if (first) showUnlockFor(first);
+    }
     if (recentCodes().length) showCode(recentCodes()[0]);
     // 記住上次停在哪一頁（老師在收成績時重新整理，不會跳回產生測驗碼）
     try { if (location.hash === '#collect' || localStorage.getItem(STORE + '.tab') === 'collect') showTab('collect'); } catch (e) { /* 忽略 */ }
-    window.PuppyTeacher = { addPayload, rows: () => rows, csvText, makeNew, renderTable, handleFound, jsqrScan, setZoom };
+    window.PuppyTeacher = { addPayload, rows: () => rows, csvText, makeNew, renderTable, handleFound, jsqrScan, setZoom, engine: () => (zx ? 'zxing' : detector ? 'native' : 'jsqr') };
 
     // ── 自動測試（網址加 ?apptest=1）──
     if (/[?&]apptest=1/.test(location.search)) {
@@ -564,6 +631,16 @@
         ok($('unlockBox').textContent.includes(PT.unlockCode('130317')) && /^\d{4}$/.test(PT.unlockCode('130317')), '收成績畫面顯示這組測驗碼的解除密碼');
         ok(!$('recentCard').hidden && $('recent').querySelectorAll('button').length >= 3, '最近產生的測驗碼會留在畫面上');
         ok(document.querySelectorAll('#zoomRow button').length === 5, '鏡頭拉近有 1×～5× 五個按鈕');
+        // v3.8.1：新版短 QR（Z2.）也收得到，分數由打對／打錯算回來；解除密碼大字顯示
+        const z2 = PT._t.qrPayload({ code: '140217', g: 5, c: 1, s: 9, attempt: 1, ok: 90, miss: 10, mash: 0, self: false, when: '202611171200' });
+        ok(/^Z2\.[0-9.]+$/.test(z2) && z2.length < 60, '新版 QR 內容只有數字和點、比較短：' + z2);
+        const zr = addPayload(z2);
+        const zrow = rows.find(r => r.code === '140217' && r.s === 9);
+        ok(zr[0] && zrow && zrow.score === 81 && zrow.acc === 90 && zrow.rate === 6, '新版 QR：90 對 10 錯 → 81 分、90%、每分鐘 6 字（3 分鐘英打）');
+        ok(addPayload(z2.replace('.90.', '.99.'))[0] === false, '新版 QR 被改過也會擋下');
+        ok($('unlockBig').textContent.includes(PT.unlockCode('140217')), '掃到 QR 後上方大字顯示解除密碼');
+        $('lookCode').value = '360221'; $('lookGo').onclick();
+        ok($('unlockBig').textContent.includes(PT.unlockCode('360221')), '輸入測驗碼也能查解除密碼');
         try { localStorage.removeItem(STORE + '.recent'); localStorage.removeItem(STORE + '.tab'); } catch (e) { /* 忽略 */ }
       } catch (e) {
         fails.push('發生例外：' + e.message);

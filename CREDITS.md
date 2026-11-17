@@ -44,6 +44,7 @@ SOFTWARE.
 |---|---|---|---|
 | `qrcode.js` | 產生 QR Code（家長蓋章、打字測驗成績） | [kazuhikoarase/qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) | MIT，Copyright (c) 2009 Kazuhiko Arase |
 | `jsqr.js` 1.4.0 | 教師頁用相機讀 QR Code（全部在老師自己的裝置上處理，不上傳） | [cozmo/jsQR](https://github.com/cozmo/jsQR) | Apache License 2.0，全文見 `jsqr_LICENSE.txt` |
+| `zxing_reader.js`、`zxing_reader.wasm`（zxing-wasm 3.1.7） | 教師頁用相機一次認出多個 QR Code（在老師自己的裝置上處理，不上傳） | [Sec-ant/zxing-wasm](https://github.com/Sec-ant/zxing-wasm)，引擎為 [zxing-cpp](https://github.com/zxing-cpp/zxing-cpp) | MIT（zxing-wasm）、Apache License 2.0（zxing-cpp），見 `zxing_LICENSE.txt` |
 
 注音鍵位採用標準大千式排列（微軟注音預設），練習題目由程式隨機產生，沒有使用外部字表。
 

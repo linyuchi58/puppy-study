@@ -3,8 +3,9 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.8.0';
-  const APP_BUILD = '20261117-7';
+  const APP_VERSION = 'v3.8.1';
+  const APP_BUILD = '20261117-8';
+  window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
   const STORAGE_KEY = 'puppy_study_save_v2' + (SELFTEST ? '_selftest' : '');
@@ -2621,9 +2622,10 @@
         tyP.querySelector('#tyUnlock').value = T.unlockCode('120101');
         tyP.querySelector('#tyUnlockGo').click();
         ok(T.view() === 'home' && !T.isExam() && !T.common().lock && !document.body.classList.contains('ty-exam'), '輸入正確的解除密碼才回到一般練習');
-        const parts = tr.qr.split('|');
-        ok(parts.length === 15 && parts[0] === 'PZT1' && parts[1] === '120101' && parts[2] === '4' && parts[3] === '3' && parts[4] === '12' && parts[5] === '1' && parts[6] === '18', 'QR 內容有測驗碼、年班座號、次數、得分');
-        ok(window.PuppyStamp.code(T.QR_KEY || window.PuppyTyping.QR_KEY, parts.slice(0, 14).join('|')) === parts[14], 'QR 檢查碼正確（老師端可以驗證）');
+        const parts = tr.qr.split('.');
+        ok(parts.length === 12 && parts[0] === 'Z2' && parts[1] === '120101' && parts[2] === '4' && parts[3] === '3' && parts[4] === '12' && parts[5] === '1' && parts[6] === '19' && parts[7] === '1', 'QR 內容有測驗碼、年班座號、次數、打對打錯（v3.8.1 短格式）');
+        ok(window.PuppyStamp.code(window.PuppyTyping.QR_KEY, parts.slice(0, 11).join('.')) === parts[11], 'QR 檢查碼正確（老師端可以驗證）');
+        ok(/^[0-9A-Z.]+$/.test(tr.qr) && tr.qr.length < 60, 'QR 只用數字、大寫和點（英數模式，格子少、好掃）');
         T.prepareTest('120101', false);
         T.startTest();
         T.setRun({ test: Object.assign(T.run().test, { startAt: Date.now() - 1 }) });
@@ -2679,7 +2681,7 @@
         T.cnEvaluate(tt.slice(0, 20) + '錯' + tt.slice(21, 30));
         T.finishTest();
         const cr = T.result();
-        ok(cr.mode === 'cn' && cr.ok === 29 && cr.miss === 1 && cr.score === 28 && cr.qr.split('|')[1] === '340123', '中文測驗：29 對 1 錯得 28 分，QR 有測驗碼');
+        ok(cr.mode === 'cn' && cr.ok === 29 && cr.miss === 1 && cr.score === 28 && cr.qr.split('.')[1] === '340123', '中文測驗：29 對 1 錯得 28 分，QR 有測驗碼');
         T.prepareTest('340123', false);
         T.startTest();
         T.setRun({ test: Object.assign(T.run().test, { startAt: Date.now() - 30000 }) });
