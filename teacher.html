@@ -174,10 +174,10 @@
     </section>
   </main>
 
-  <script src="./stamp.js?v=20261117-11"></script>
-  <script src="./typing.js?v=20261117-11"></script>
-  <script src="./jsqr.js?v=20261117-11"></script>
-  <script src="./zxing_reader.js?v=20261117-11"></script>
+  <script src="./stamp.js?v=20261117-12"></script>
+  <script src="./typing.js?v=20261117-12"></script>
+  <script src="./jsqr.js?v=20261117-12"></script>
+  <script src="./zxing_reader.js?v=20261117-12"></script>
   <script>
   (function () {
     'use strict';
@@ -188,6 +188,8 @@
     try { $('tVer').textContent = '　建置 ' + (document.querySelector('script[src*="typing.js"]').src.split('v=')[1] || ''); } catch (e) { /* 忽略 */ }
     let rows = [];
     // v3.8.4：存檔裡如果有壞掉的資料（例如空的一筆），直接跳過，不讓整頁掛掉
+    // v3.8.5：舊版測驗碼（現在的規則讀不懂）也能顯示，不讓表格出錯
+    function codeLabel(c) { const i = PT.parseCode(c); return i ? `${SUBJ[i.mode] || ''} ${i.timeText}` : '舊版測驗碼'; }
     function goodRow(r) { return !!(r && typeof r === 'object' && /^\d{6}$/.test(String(r.code)) && r.g && r.c && r.s && typeof r.when === 'string'); }
     function cleanRows(a) { return (Array.isArray(a) ? a : []).filter(goodRow); }
     let droppedOnLoad = 0;
@@ -270,7 +272,7 @@
     // 檢查一筆 QR 內容，正確就加入；回傳 [成功?, 訊息]
     // 解除密碼：掃到 QR 或輸入測驗碼就顯示（老師忘記測驗碼也查得到）
     function showUnlockFor(code) {
-      const info = PT.parseCode(code);
+      const info = PT.parseCode(code) || { mode: '', timeText: '' };
       if (!info) return false;
       $('unlockBig').innerHTML = `測驗碼 ${esc(code)}（${SUBJ[info.mode]} ${info.timeText}）的解除密碼<b>${PT.unlockCode(code)}</b>收完成績後唸給學生聽`;
       return true;
@@ -342,13 +344,17 @@
         .sort((a, b) => a.g - b.g || a.c - b.c || a.s - b.s);
     }
 
+    // v3.8.5：畫表格就算出錯，也不影響成績存檔和繼續掃描
+    let tableErr = '';
     function renderTable(wantCode, wantClass) {
+      try { renderTableRaw(wantCode, wantClass); tableErr = ''; } catch (e) { tableErr = String((e && e.message) || e).slice(0, 90); }
+    }
+    function renderTableRaw(wantCode, wantClass) {
       const codes = [...new Set(rows.map(r => r.code))].sort();
       const fc = $('fCode');
       const curCode = wantCode || fc.value || codes[codes.length - 1] || '';
       fc.innerHTML = codes.length ? codes.map(c => {
-        const info = PT.parseCode(c);
-        return `<option value="${c}" ${c === curCode ? 'selected' : ''}>${c}（${SUBJ[info.mode]} ${info.timeText}）</option>`;
+        return `<option value="${c}" ${c === curCode ? 'selected' : ''}>${c}（${codeLabel(c)}）</option>`;
       }).join('') : '<option value="">還沒有成績</option>';
       const classes = [...new Set(rows.filter(r => r.code === fc.value).map(r => r.g + '-' + r.c))]
         .sort((a, b) => { const [ag, ac] = a.split('-').map(Number); const [bg, bc] = b.split('-').map(Number); return ag - bg || ac - bc; });
@@ -436,7 +442,7 @@
     try {
       if (window.ZXingWASM && window.WebAssembly) {
         window.ZXingWASM.prepareZXingModule({
-          overrides: { locateFile: (path, prefix) => (path.endsWith('.wasm') ? './zxing_reader.wasm?v=20261117-11' : prefix + path) },
+          overrides: { locateFile: (path, prefix) => (path.endsWith('.wasm') ? './zxing_reader.wasm?v=20261117-12' : prefix + path) },
           fireImmediately: true
         }).then(() => { zx = window.ZXingWASM; }).catch(() => { zx = null; });
       }
@@ -649,7 +655,7 @@
     function showDiag() {
       const v = $('video');
       const eng = [zx ? 'zxing' : '', detector ? '手機內建' : '', !zx && !detector ? 'jsQR' : ''].filter(Boolean).join('＋');
-      $('diag').textContent = `掃描中｜${eng}｜畫面 ${v.videoWidth}×${v.videoHeight}｜已看 ${diag.frames} 張｜認到 ${diag.found}` + (diag.errs ? `｜錯誤 ${diag.errs}（${diag.lastErr}）` : '');
+      $('diag').textContent = `掃描中｜${eng}｜畫面 ${v.videoWidth}×${v.videoHeight}｜已看 ${diag.frames} 張｜認到 ${diag.found}` + (diag.errs ? `｜錯誤 ${diag.errs}（${diag.lastErr}）` : '') + (tableErr ? `｜表格：${tableErr}` : '');
     }
     async function tick() {
       const v = $('video');
@@ -787,6 +793,11 @@
         handleFound([zB]);
         ok($('fCode').value === '130317' && $('fClass').value === '5-2' && $('tbody').querySelector('tr.hit') && /4 號/.test($('live').textContent) && /收過了/.test($('live').textContent), '掃到已經收過的：表格切到那一組、標出那一列，鏡頭下方有清單');
         ok($('paneCollect').firstElementChild.querySelector('#camGo') !== null, '收成績頁面最上面就是相機');
+        // v3.8.5：存檔裡有舊版測驗碼（現在讀不懂）也不影響表格和收成績
+        rows = [{ code: '999999', g: 5, c: 4, s: 1, attempt: 1, ok: 1, miss: 0, score: 1, acc: 100, rate: 1, mash: 0, self: false, when: '202611100800' }, ...rows];
+        renderTable('999999', '5-4');
+        ok(/舊版測驗碼/.test($('fCode').textContent), '舊版測驗碼的成績也能顯示');
+        rows = rows.filter(r => r.code !== '999999');
         // v3.8.4：存檔裡有壞掉的一筆（null）也不影響收成績
         rows = [null, { code: 'x' }, ...rows];
         const zC = PT._t.qrPayload({ code: '121416', g: 5, c: 4, s: 30, attempt: 1, ok: 120, miss: 8, mash: 0, self: false, when: '202611171354' });
