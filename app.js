@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.8.5';
-  const APP_BUILD = '20261117-12';
+  const APP_VERSION = 'v3.9.0';
+  const APP_BUILD = '20261120-2';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
@@ -22,7 +22,8 @@
     homework: ['✅', '自我打卡'],
     cards: ['🃏', '閃卡'],
     games: ['🎮', '挑戰包'],
-    calm: ['🌈', '照顧心情']
+    calm: ['🌈', '照顧心情'],
+    typing: ['⌨️', '打字練習']
   };
 
   const DOG_COAT = {
@@ -45,14 +46,14 @@
   ];
 
   const PETS = [
-    ['dog:威爾斯柯基', '🐕', '威爾斯柯基', 'focus', 'free', '一開始就是你的好夥伴', 0],
+    ['dog:威爾斯柯基', '🐕', '威爾斯柯基', 'english', 'free', '一開始就是你的好夥伴', 0],
     ['dog:奶油柯基', '🐕', '奶油柯基', 'homework', 'focus1', '完成 1 次專注讀書或打卡', 1],
     ['dog:黑頭三色柯基', '🐕', '三色柯基', 'homework', 'days10', '累積學習 10 天（不用連續）', 10],   // v3.7.2：原本「挑戰包過 3 關」
     ['dog:柴犬', '🐕', '柴犬', 'english', 'eng5', '英語闖關完成 5 關', 5],
     ['dog:米格魯', '🐕', '米格魯', 'english', 'streak3', '連續學習 3 天', 3],
-    ['dog:哈士奇', '🐕', '哈士奇', 'math', 'math150', '算術答對 150 題', 150],
-    ['dog:大麥町', '🐕', '大麥町', 'calm', 'hw15', '自我打卡累積 15 項', 15],
-    ['dog:巧克力拉布拉多', '🐕', '拉布拉多', 'focus', 'focus300', '專注讀書累積 300 分鐘', 300],
+    ['dog:哈士奇', '🐕', '哈士奇', 'typing', 'math150', '打字練習完成 30 回（英打、注音、中文都算；電腦版算術答對 150 題也可以）', 30],   // v3.9.0：網頁版沒有算術
+    ['dog:大麥町', '🐕', '大麥町', 'homework', 'hw15', '自我打卡累積 15 項', 15],
+    ['dog:巧克力拉布拉多', '🐕', '拉布拉多', 'typing', 'focus300', '打字練習累積 60 分鐘（電腦版專注讀書 300 分鐘也可以）', 60],   // v3.9.0：網頁版沒有專注計時
     ['c3d:小熊可可.json', '🧸', '小熊可可', 'homework', 'streak7', '連續學習 7 天', 7],
     ['c3d:小藍龍.json', '🐲', '小藍龍', 'english', 'eng30', '英語闖關完成 30 關', 30],
     ['standee', '🖼', '我的立牌', 'english', 'stars150', '累積賺到 150 顆星星', 150]
@@ -420,8 +421,25 @@
     return normalizeData(defaultData());
   }
 
+  // v3.9.0：登入雲端時，記下「這台裝置賺到的」星星和經驗值，兩台合併時兩邊賺的都算進去
+  function deviceId() {
+    let id = lsGet('puppy_study_device');
+    if (!id) { id = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); lsSet('puppy_study_device', id); }
+    return id;
+  }
+  function ledgerAdd(stars, xp) {
+    if (!(window.PuppyCloud && window.PuppyCloud.signedIn && window.PuppyCloud.signedIn())) return;
+    if (!state.cloud_ledger || typeof state.cloud_ledger !== 'object' || Array.isArray(state.cloud_ledger)) state.cloud_ledger = {};
+    const me = state.cloud_ledger[deviceId()] || (state.cloud_ledger[deviceId()] = { s: 0, x: 0 });
+    me.s += Math.max(0, +stars || 0); me.x += Math.max(0, +xp || 0);
+  }
+
+  // v3.9.0：共用電腦上登入雲端時，不留每日備份（避免下一位同學看到）
+  function cloudShared() { try { const m = window.PuppyCloud && window.PuppyCloud.meta(); return !!(m && m.shared); } catch (e) { return false; } }
+
   function saveState() {
     state.format = 'puppy-study/2';
+    state.saved_at = Date.now();
     state.pets.fullness = Math.round(Math.max(0, Math.min(100, state.pets.fullness)) * 10) / 10;
     state.sig = sigOf(state);
     const txt = JSON.stringify(state);
@@ -434,8 +452,9 @@
       } else {
         lsSet(BAK_KEY, txt);
       }
-      dailySnapshot(txt, false);
+      if (!cloudShared()) dailySnapshot(txt, false);
     }
+    if (window.PuppyCloud) { try { window.PuppyCloud.changed(); } catch (e) { /* 雲端出錯不影響存檔 */ } }
     updateTopBar();
     updatePetSidebar();
     renderPlayground();
@@ -580,6 +599,16 @@
     return true;
   }
 
+  // 三種打字（英打、注音、中文）一般練習加起來：完成幾回、練了幾分鐘
+  function typingTotals() {
+    let rounds = 0, ms = 0;
+    ['typing', 'zhuyin', 'chinese'].forEach(k => {
+      const days = state[k] && state[k].days;
+      if (days && typeof days === 'object') Object.values(days).forEach(d => { rounds += +(d && d.lessons) || 0; ms += +(d && d.ms) || 0; });
+    });
+    return { rounds, minutes: Math.floor(ms / 60000) };
+  }
+
   function condProgress(cond) {
     const t = state.totals || {};
     switch (cond) {
@@ -592,9 +621,16 @@
       }
       case 'eng5': return [Math.min(5, t.eng_lessons || 0), 5];
       case 'streak3': return [Math.min(3, (state.streak && state.streak.best) || 0), 3];
-      case 'math150': return [Math.min(150, t.math_correct || 0), 150];
+      // v3.9.0：網頁版沒有算術和專注計時，改用打字練習（從電腦版搬來的算術、專注紀錄也照樣算）
+      case 'math150': {
+        const r = typingTotals().rounds;
+        return (t.math_correct || 0) >= 150 ? [30, 30] : [Math.min(30, Math.max(r, Math.floor((t.math_correct || 0) / 5))), 30];
+      }
       case 'hw15': return [Math.min(15, t.hw_done || 0), 15];
-      case 'focus300': return [Math.min(300, t.focus_min || 0), 300];
+      case 'focus300': {
+        const m = typingTotals().minutes;
+        return (t.focus_min || 0) >= 300 ? [60, 60] : [Math.min(60, Math.max(m, Math.floor((t.focus_min || 0) / 5))), 60];
+      }
       case 'streak7': return [Math.min(7, (state.streak && state.streak.best) || 0), 7];
       case 'eng30': return [Math.min(30, t.eng_lessons || 0), 30];
       case 'stars150': return [Math.min(150, t.stars_earned || 0), 150];
@@ -664,6 +700,7 @@
     state.xp_total = (state.xp_total || 0) + totalXp;
     state.stars = (state.stars || 0) + stars;
     state.totals.stars_earned = (state.totals.stars_earned || 0) + Math.max(0, stars);
+    ledgerAdd(stars, totalXp);
 
     const bondRes = addBond(bondAdd, pid);
 
@@ -2011,6 +2048,7 @@
     const lastExport = state.settings.last_export || '';
 
     wrap.innerHTML = `
+      <div id="cloudBox" hidden></div>
       <div class="card-box">
         <div class="section-title"><span>📦 跨裝置搬家碼與備份</span></div>
         <p class="section-sub">
@@ -2063,6 +2101,7 @@
       <p class="section-sub" style="text-align:center;">《汪汪小精靈 學習小伙伴》網頁版 ${APP_VERSION}（建置 ${APP_BUILD}）</p>
     `;
 
+    if (window.PuppyCloud) { try { window.PuppyCloud.render(document.getElementById('cloudBox')); } catch (e) { /* 忽略 */ } }
     wrap.querySelectorAll('[data-restore-day]').forEach(btn => {
       btn.addEventListener('click', () => {
         const day = btn.dataset.restoreDay;
@@ -2431,9 +2470,69 @@
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
       const txt = lsGet(STORAGE_KEY);
-      if (txt) dailySnapshot(txt, true);
+      if (txt && !cloudShared()) dailySnapshot(txt, true);
     }
   });
+  // v3.9.0：給雲端同步（cloud.js）用的介面
+  const STASH_KEY = STORAGE_KEY + '.stash';
+  function cloudCopy() {
+    const c = JSON.parse(JSON.stringify(state));
+    if (c.typing && typeof c.typing === 'object') { delete c.typing.lock; delete c.typing.who; }   // 測驗鎖定和年班座號只留在這台
+    c.sig = sigOf(c);
+    return JSON.stringify(c);
+  }
+  function refreshView() { try { switchTab(activeTab); } catch (e) { /* 忽略 */ } }
+  window.PuppyApp = {
+    getState: () => state,
+    saveNow: () => saveState(),
+    earn: (xp, stars) => { award(xp, stars, '', '測試'); },
+    cloudCopy,
+    say: m => petSay(m, 'happy'),
+    // 換成雲端那一份；測驗鎖定和年班座號用這台的
+    adoptCloud(obj, stash) {
+      if (checkSig(obj) !== 'ok') return false;
+      const cur = lsGet(STORAGE_KEY);
+      if (cur) lsSet(stash ? STASH_KEY : STORAGE_KEY + '.before_cloud', cur);
+      const keep = state.typing && typeof state.typing === 'object' ? { lock: state.typing.lock, who: state.typing.who } : {};
+      state = mergeData(obj);
+      if (!state.typing || typeof state.typing !== 'object') state.typing = {};
+      ['lock', 'who'].forEach(k => { if (keep[k] !== undefined) state.typing[k] = keep[k]; else delete state.typing[k]; });
+      saveState();
+      refreshView();
+      return true;
+    },
+    // 兩份自動合併（對學生最有利，東西只會變多）；雲端那一份被改過就不合併
+    mergeCloud(obj) {
+      if (checkSig(obj) !== 'ok' || !window.PuppyMerge) return false;
+      const cur = lsGet(STORAGE_KEY);
+      if (cur) lsSet(STORAGE_KEY + '.before_cloud', cur);
+      state = mergeData(window.PuppyMerge.merge(state, obj));
+      saveState();
+      refreshView();
+      return true;
+    },
+    keepCopy(text) { if (text) lsSet(STORAGE_KEY + '.before_cloud', text); },
+    // stash=true：把這台原本的進度（可能是別的同學的）先收起來，換成全新的
+    // stash=false：登出清掉；如果之前有收起來的進度，就放回去
+    resetLocal(stash) {
+      const cur = lsGet(STORAGE_KEY);
+      if (stash) {
+        if (cur) lsSet(STASH_KEY, cur);
+        state = normalizeData(defaultData());
+      } else {
+        let back = null;
+        try { back = JSON.parse(lsGet(STASH_KEY) || 'null'); } catch (e) { back = null; }
+        try { localStorage.removeItem(STASH_KEY); localStorage.removeItem(BAK_KEY); } catch (e) { /* 忽略 */ }
+        const keep = state.typing && typeof state.typing === 'object' ? { lock: state.typing.lock, who: state.typing.who } : {};
+        state = back && checkSig(back) === 'ok' ? mergeData(back) : normalizeData(defaultData());
+        if (keep.lock) { if (!state.typing || typeof state.typing !== 'object') state.typing = {}; state.typing.lock = keep.lock; }
+      }
+      saveState();
+      refreshView();
+    }
+  };
+  if (window.PuppyCloud) { try { window.PuppyCloud.start(); } catch (e) { /* 忽略 */ } }
+
   if (!SELFTEST && navigator.storage && navigator.storage.persist) {
     try { navigator.storage.persist().catch(() => {}); } catch (e) { /* 忽略 */ }
   }
@@ -2476,7 +2575,7 @@
       ok(doTrick('paw') === true, 'Lv1 可以握手');
       ok(doTrick('sit') === false, '冷卻時間內不能連續表演');
       play(0, 0);
-      ok(state.stars === 3 && state.xp_total === 15 && state.totals.eng_lessons === 1, '第 1 關全對應該 +3⭐、+15 經驗值，實際 ' + state.stars + '⭐ ' + state.xp_total);
+      ok(state.stars === 3 && state.xp_total === 19 && state.totals.eng_lessons === 1, '第 1 關全對應該 +3⭐、+15 經驗值（柯基拿手英語再 +4），實際 ' + state.stars + '⭐ ' + state.xp_total);
       ok(Object.values(state.eng.words).every(r => 'b' in r && !('box' in r)), '單字紀錄要用桌面版格式');
       play(0, 0);
       ok(state.stars === 4 && state.totals.eng_lessons === 1, '重玩舊關卡只 +1⭐、不算進度，實際 ' + state.stars);
@@ -2727,6 +2826,32 @@
       ok(restoreDaily(todayStr(-2)) === false && listDailyBackups().every(b => b.day !== todayStr(-2)), '壞掉或被改過的備份不能還原');
       dailyKeys().forEach(k => localStorage.removeItem(k));
       try { localStorage.removeItem(STORAGE_KEY + '.before_restore'); } catch (e) { /* 忽略 */ }
+      // v3.9.0：網頁版沒有算術和專注計時，哈士奇、拉布拉多改用打字練習解鎖
+      state = loadState();
+      ok(!isPetUnlocked('dog:哈士奇') && !isPetUnlocked('dog:巧克力拉布拉多'), '一開始沒有解鎖哈士奇、拉布拉多');
+      state.typing = { days: { [todayStr()]: { lessons: 20, ms: 40 * 60000 } } };
+      state.zhuyin = { days: { [todayStr()]: { lessons: 10, ms: 20 * 60000 } } };
+      ok(isPetUnlocked('dog:哈士奇') && isPetUnlocked('dog:巧克力拉布拉多'), '打字（英打＋注音）30 回、60 分鐘：解鎖哈士奇、拉布拉多');
+      state = loadState(); state.totals.math_correct = 150; state.totals.focus_min = 300;
+      ok(isPetUnlocked('dog:哈士奇') && isPetUnlocked('dog:巧克力拉布拉多'), '電腦版搬來的算術 150 題、專注 300 分鐘也照樣算');
+      state = loadState();
+      state.chinese = { days: { [todayStr()]: { lessons: 12, ms: 0 } } };
+      ok(condProgress('math150')[0] === 12 && condProgress('math150')[1] === 30, '圖鑑顯示打字進度 12／30');
+      // v3.9.0：每一隻狗的拿手科目，網頁版都有對應的練習（英語、自我打卡、打字）
+      ok(PETS.every(r => ['english', 'homework', 'typing'].includes(r[3])), '每一隻寵物的拿手科目網頁版都練得到');
+      // v3.9.0 雲端同步：預設不開；上傳的那一份不含測驗鎖定和年班座號，而且簽章正確
+      ok(!(window.PuppyCloud && window.PuppyCloud.on) || /[?&]cloudtest=1/.test(location.search), '雲端同步預設不開（cloud_config.js 沒填）');
+      state = loadState();
+      state.typing = { who: { g: 5, c: 4, s: 30 }, lock: { at: 1 }, prog: { L01: 3 } };
+      const cc = JSON.parse(window.PuppyApp.cloudCopy());
+      ok(!cc.typing.lock && !cc.typing.who && cc.typing.prog.L01 === 3 && checkSig(cc) === 'ok', '雲端那一份：拿掉測驗鎖定和年班座號、保留進度、簽章正確');
+      const whoBefore = JSON.stringify(state.typing.who);
+      cc.stars = 3; cc.sig = sigOf(cc);
+      ok(window.PuppyApp.adoptCloud(cc) && state.stars === 3 && JSON.stringify(state.typing.who) === whoBefore && !!state.typing.lock, '換成雲端那一份：保留這台的測驗鎖定和年班座號');
+      cc.stars = 9999;
+      ok(window.PuppyApp.adoptCloud(cc) === false && state.stars === 3, '雲端那一份被改過（簽章不對）就不換');
+      try { localStorage.removeItem(STORAGE_KEY + '.before_cloud'); } catch (e) { /* 忽略 */ }
+      dailyKeys().forEach(k => localStorage.removeItem(k));
       ok(/^v\d+\.\d+\.\d+$/.test(APP_VERSION) && /^\d{8}-\d+$/.test(APP_BUILD), '版本與建置編號格式正確：' + APP_VERSION + ' ' + APP_BUILD);
     } catch (e) {
       fails.push('發生例外：' + (e && e.message ? e.message : String(e)));
