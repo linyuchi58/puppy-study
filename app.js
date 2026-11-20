@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.9.1';
-  const APP_BUILD = '20261120-6';
+  const APP_VERSION = 'v3.9.2';
+  const APP_BUILD = '20261120-7';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
@@ -2826,6 +2826,8 @@
       ok(restoreDaily(todayStr(-2)) === false && listDailyBackups().every(b => b.day !== todayStr(-2)), '壞掉或被改過的備份不能還原');
       dailyKeys().forEach(k => localStorage.removeItem(k));
       try { localStorage.removeItem(STORAGE_KEY + '.before_restore'); } catch (e) { /* 忽略 */ }
+      // v3.9.2：全班測驗鎖定 20 分鐘後自動解除
+      ok(window.PuppyTyping._t.lockExpired({ at: Date.now() - 21 * 60000 }) && !window.PuppyTyping._t.lockExpired({ at: Date.now() - 19 * 60000 }), '測驗鎖定超過 20 分鐘才自動解除');
       // v3.9.0：網頁版沒有算術和專注計時，哈士奇、拉布拉多改用打字練習解鎖
       state = loadState();
       ok(!isPetUnlocked('dog:哈士奇') && !isPetUnlocked('dog:巧克力拉布拉多'), '一開始沒有解鎖哈士奇、拉布拉多');

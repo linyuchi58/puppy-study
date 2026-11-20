@@ -437,6 +437,26 @@
 
   // ── v3.7.6 測驗模式：全螢幕、狗狗和其他按鈕都藏起來；全班測驗結束後鎖在 QR 畫面，要老師的解除密碼 ──
   let exam = false;
+  // v3.9.2：測驗結束超過 20 分鐘自動解除；學生也可以按角落的「離開」（會再確認一次）
+  const LOCK_MAX_MS = 20 * 60000;
+  function lockExpired(lk) { return !!(lk && lk.at && Date.now() - lk.at > LOCK_MAX_MS); }
+  function releaseLock() {
+    delete common().lock;
+    api.save();
+    leaveExam();
+    view = 'home';
+    render();
+  }
+  function showLastTest() {
+    const lt = common().lastTest;
+    const li = lt && lt.res && parseCode(lt.res.code);
+    if (!li) return;
+    mode = li.mode;
+    lastResult = Object.assign({ test: true, mode: li.mode, info: li, xp: lt.xp || 0, qr: lt.qr, review: true }, lt.res);
+    view = 'testresult';
+    render();
+  }
+
   function unlockCode(code) {
     const c = window.PuppyStamp ? window.PuppyStamp.code(QR_KEY, 'UNLOCK|' + code) : '000000';
     return String(c).slice(-4);
@@ -831,7 +851,10 @@
     };
     lastResult = Object.assign({ test: true, mode, info, xp, prevBest, newBest: score > prevBest && prevBest > 0, qr: qrPayload(res) }, res);
     // 全班測驗：鎖在 QR 畫面（存起來，重新整理也一樣），要老師的解除密碼才能離開
-    if (!test.self) c.lock = { res, qr: lastResult.qr, xp, at: Date.now() };
+    if (!test.self) {
+      c.lock = { res, qr: lastResult.qr, xp, at: Date.now() };
+      c.lastTest = { res, qr: lastResult.qr, xp, at: Date.now() };    // v3.9.2：提早離開也能再叫出來給老師掃
+    }
     run = null;
     view = 'testresult';
     if (api.focus) api.focus(false);
@@ -931,6 +954,7 @@
           ${Object.values(MODES).map(m => `<button class="ty-mode ${m.id === mode ? 'on' : ''}" data-mode="${m.id}" role="tab" aria-selected="${m.id === mode}">${m.label}</button>`).join('')}
         </div>
         <button class="ty-test-btn" id="tyTestBtn">🏁 全班測驗／自己挑戰</button>
+        ${(() => { const lt = common().lastTest; return lt && lt.at && Date.now() - lt.at < 7 * 86400000 && !common().lock ? `<button class="ty-last-test" id="tyLastTest">📋 上一次全班測驗成績 QR（${lt.res.g}年${lt.res.c}班${lt.res.s}號・${lt.res.score} 分）</button>` : ''; })()}
         <div class="section-title" style="margin-top:12px;"><span>${{ en: '⌨️ 英打練習', zh: 'ㄅ 注音鍵位練習', cn: '中 中文打字練習' }[mode]}</span><span class="ty-today-pill">今天有效練習 ${min} 分 ${sec} 秒</span></div>
         ${coarse ? '<p class="ty-warn">這台裝置看起來沒有接實體鍵盤。打字練習要用真的鍵盤，請接上鍵盤或改用電腦。</p>' : ''}
         <p class="section-sub">${intro}</p>
@@ -1155,7 +1179,9 @@
           <div class="${r.mash ? 'bad' : ''}"><b>${r.mash}</b><span>${r.mode === 'cn' ? '可疑操作' : '亂按次數'}</span></div>
         </div>
         ${r.xp ? `<p class="section-sub">獲得 +${r.xp} 經驗值</p>` : ''}
-        ${r.self ? `<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:10px;">
+        ${r.review ? `<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:10px;">
+          <button class="btn btn-soft" id="tyDone">回到打字練習</button>
+        </div>` : r.self ? `<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:10px;">
           <button class="btn btn-soft" id="tyDone">完成</button>
           <button class="btn btn-orange" id="tyAgainSelf">🔁 再挑戰一次</button>
         </div>` : `<div class="ty-unlock">
@@ -1163,6 +1189,8 @@
           <div class="ty-unlock-row"><input id="tyUnlock" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="____" aria-label="解除密碼">
           <button class="btn btn-green" id="tyUnlockGo">解除</button></div>
           <div id="tyUnlockMsg" class="ty-unlock-msg"></div>
+          <div class="ty-unlock-note">測驗結束 20 分鐘後會自動解除</div>
+          <button class="ty-exit-early" id="tyExitEarly" type="button">離開</button>
         </div>`}
       </div>`;
   }
@@ -1182,15 +1210,15 @@
     on('tyStart', startTest);
     on('tyFsBar', goFullscreen);
     on('tyDone', () => { leaveExam(); view = 'home'; render(); });
+    on('tyExitEarly', () => {
+      if (window.confirm('⚠️ 老師已經收完你的成績，而且同意你離開了嗎？\n\n還沒等老師同意就離開，老師可能收不到你的成績。\n（離開後，在打字練習頁可以按「上一次測驗成績 QR」再叫出來）\n\n確定要離開嗎？')) releaseLock();
+    });
+    on('tyLastTest', showLastTest);
     const unl = pane.querySelector('#tyUnlock');
     if (unl) {
       const tryUnlock = () => {
         if (unl.value.trim() === unlockCode(lastResult.code)) {
-          delete common().lock;
-          api.save();
-          leaveExam();
-          view = 'home';
-          render();
+          releaseLock();
         } else {
           const m = pane.querySelector('#tyUnlockMsg');
           if (m) m.textContent = '密碼不對，請等老師說。';
@@ -1376,7 +1404,8 @@
       pane = el;
       api = hooks;
       // 全班測驗結束還沒解除（例如學生按了重新整理）：直接回到 QR 畫面
-      const lk = common().lock;
+      let lk = common().lock;
+      if (lk && lockExpired(lk)) { delete common().lock; hooks.save(); lk = null; }   // 超過 20 分鐘：自動解除
       const li = lk && lk.res && parseCode(lk.res.code);
       if (li) {
         mode = li.mode;
@@ -1386,6 +1415,11 @@
         document.body.classList.add('ty-exam');
       }
       window.addEventListener('keydown', onKeyDown);
+      // 鎖在 QR 畫面時，每 15 秒看一次是不是已經超過 20 分鐘
+      setInterval(() => {
+        const l = common().lock;
+        if (l && view === 'testresult' && lockExpired(l)) releaseLock();
+      }, 15000);
       if (!ticker) {
         ticker = setInterval(() => {
           if (view !== 'play') return;
@@ -1406,7 +1440,7 @@
       LETTER_LESSONS, ZH_LESSONS, FINGER_OF, LETTERS_BEFORE, ZH_OF_KEY, KEY_OF_ZH, CODE_KEY, MODES,
       CN_LESSONS, cnText, cnCompare, cnEvaluate, TIMES,
       makeText, makeRun, startLesson, handleKey, starsFor, unlockedIndex, parseCode, makeCode, testText, scoreOf, qrPayload,
-      prepareTest, startTest, finishTest, common, unlockCode, isExam: () => exam,
+      prepareTest, startTest, finishTest, common, unlockCode, isExam: () => exam, releaseLock, showLastTest, lockExpired, LOCK_MAX_MS,
       run: () => run, result: () => lastResult, view: () => view, status, quit, data,
       setRun: patch => Object.assign(run, patch), setMode: m => { mode = m; }
     }

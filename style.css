@@ -938,7 +938,11 @@ body.ty-exam .modal-backdrop { z-index: 600; }
   animation: tyWaitPulse 1.2s ease-in-out infinite;
 }
 .ty-fs-bar[hidden] { display: none; }
-.ty-unlock { margin: 14px auto 0; max-width: 520px; padding: 14px 16px; border-radius: 16px; background: #fff4c2; border: 3px solid #f2b705; text-align: center; }
+.ty-unlock { margin: 14px auto 0; max-width: 520px; padding: 14px 16px; border-radius: 16px; background: #fff4c2; border: 3px solid #f2b705; text-align: center; position: relative; }
+.ty-unlock-note { font-size: .8rem; color: #8a7a6a; margin-top: 2px; }
+.ty-exit-early { position: absolute; right: 8px; bottom: 6px; border: none; background: transparent; color: #a8998a; font-size: .78rem; text-decoration: underline; cursor: pointer; padding: 4px 6px; }
+.ty-exit-early:hover { color: #6b5b4b; }
+.ty-last-test { display: block; width: 100%; margin-top: 8px; padding: 8px 12px; border-radius: 12px; border: 2px dashed #d8c8b4; background: #fffaf2; color: #6b5b4b; font-weight: 700; cursor: pointer; }
 .ty-unlock > b { display: block; font-size: 1.05rem; color: #6b4a00; margin-bottom: 8px; }
 .ty-unlock-row { display: flex; gap: 8px; justify-content: center; }
 .ty-unlock-row input { width: 9em; font: inherit; font-size: 1.6rem; font-weight: 900; letter-spacing: 0.4em; text-align: center; padding: 6px; border: 3px solid #d99a00; border-radius: 12px; }
