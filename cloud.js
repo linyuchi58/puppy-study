@@ -284,7 +284,7 @@
             換一台電腦或平板登入，就能接著玩。<b>不登入也完全沒關係</b>，進度會照常存在這台裝置。
           </p>
           <p class="section-sub" style="font-size:.85rem;">
-            會存的只有：Google 帳號編號、信箱、學習進度（星星、經驗值、練習紀錄、狗狗）。不存姓名、班級、座號。隨時可以刪除。
+            會存的只有：Google 帳號編號、信箱、學習進度（星星、經驗值、練習紀錄、狗狗）。不存姓名、班級、座號。隨時可以刪除。 <a href="./privacy.html" target="_blank" rel="noopener">隱私權政策</a>
           </p>
           <label style="display:flex;align-items:center;gap:8px;font-weight:800;margin:8px 0 12px;cursor:pointer;">
             <input type="checkbox" id="cloudShared" style="width:22px;height:22px;"> 這是共用電腦（電腦教室），關掉網頁就自動登出
