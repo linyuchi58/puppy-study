@@ -211,7 +211,7 @@
     let r;
     try { r = await api({ a: 'sendCode', email }); } catch (e) { setStatus('📶 連不上雲端，請確認網路後再試一次'); return false; }
     if (!r.ok) { setStatus(ERR[r.err] || '⚠️ 雲端暫時不能用，請稍後再試'); return false; }
-    setStatus('📧 驗證信寄出了！請到信箱找「汪汪小精靈 學習小伙伴」寄來的信（找不到請看垃圾郵件）');
+    setStatus('📧 驗證信寄出了！收件匣沒有就看「垃圾郵件」');
     return true;
   }
 
@@ -339,6 +339,16 @@
                   style="flex:1;min-width:200px;font-size:1.05rem;padding:8px 12px;border-radius:12px;border:2px solid #d8c8b4;">
                 <button class="btn btn-soft" id="cloudMailGo">寄驗證碼</button>
               </div>
+              <div class="section-sub" style="margin:6px 0 0;font-size:.85rem;">⚠️ 驗證信常常會被放進「垃圾郵件」，收件匣沒看到請去那裡找。</div>
+              <div id="cloudSpamTip" style="display:none;margin-top:10px;background:#fff1d6;border:3px solid #f08c00;border-radius:16px;padding:12px 14px;">
+                <div style="font-weight:900;font-size:1.15rem;color:#b35900;">📬 信寄出了！收件匣找不到，請一定要看「垃圾郵件」！</div>
+                <div style="margin-top:6px;line-height:1.7;">
+                  ・寄件人：<b>汪汪小精靈 學習小伙伴</b><br>
+                  ・主旨：<b>【汪汪小精靈 學習小伙伴】你的驗證碼：六個數字</b><br>
+                  ・Gmail：左邊選單按「<b>更多</b>」→「<b>垃圾郵件</b>」。找到後按「<b>回報為非垃圾郵件</b>」，下次就會進收件匣。<br>
+                  ・信可能要等 1～2 分鐘才會到。
+                </div>
+              </div>
               <div id="cloudCodeRow" style="display:none;gap:8px;flex-wrap:wrap;margin-top:8px;">
                 <input id="cloudCodeIn" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="信裡的 6 個數字"
                   style="flex:1;min-width:160px;font-size:1.3rem;letter-spacing:.2em;padding:8px 12px;border-radius:12px;border:2px solid #d8c8b4;">
@@ -357,7 +367,7 @@
         if (!email) { setStatus('請先輸入信箱'); return; }
         const b = q('#cloudMailGo'); b.disabled = true;
         const sent = await sendCode(email);
-        if (sent) { q('#cloudCodeRow').style.display = 'flex'; q('#cloudCodeIn').focus(); }
+        if (sent) { q('#cloudSpamTip').style.display = 'block'; q('#cloudCodeRow').style.display = 'flex'; q('#cloudCodeIn').focus(); }
         let left = sent ? 60 : 0;
         const tick = () => { if (!b.isConnected) return; if (left > 0) { b.textContent = `再寄一次（${left}）`; left--; setTimeout(tick, 1000); } else { b.disabled = false; b.textContent = sent ? '再寄一次' : '寄驗證碼'; } };
         tick();

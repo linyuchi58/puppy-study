@@ -4,7 +4,7 @@
   'use strict';
 
   const APP_VERSION = 'v3.9.2';
-  const APP_BUILD = '20261120-7';
+  const APP_BUILD = '20261120-8';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
