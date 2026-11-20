@@ -5,8 +5,8 @@
 (function () {
   'use strict';
   const CFG = window.PUPPY_CLOUD || {};
-  const ON = !!(CFG.clientId && CFG.scriptUrl);
   const TEST = /[?&](selftest|apptest)=1/.test(location.search);
+  const ON = !!(CFG.clientId && CFG.scriptUrl) && !TEST;    // 自動測試時不連真的 Google 和老師的試算表
   const META_KEY = 'puppy_study_cloud_v1' + (TEST ? '_selftest' : '');
   const SESS_KEY = META_KEY + '.sess';
   const PUSH_DELAY = 15000;       // 有新進度後 15 秒自動上傳（期間一直有新進度，最多 60 秒也會傳）

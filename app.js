@@ -4,7 +4,7 @@
   'use strict';
 
   const APP_VERSION = 'v3.9.0';
-  const APP_BUILD = '20261120-3';
+  const APP_BUILD = '20261120-4';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
@@ -2840,7 +2840,7 @@
       // v3.9.0：每一隻狗的拿手科目，網頁版都有對應的練習（英語、自我打卡、打字）
       ok(PETS.every(r => ['english', 'homework', 'typing'].includes(r[3])), '每一隻寵物的拿手科目網頁版都練得到');
       // v3.9.0 雲端同步：預設不開；上傳的那一份不含測驗鎖定和年班座號，而且簽章正確
-      ok(!(window.PuppyCloud && window.PuppyCloud.on) || /[?&]cloudtest=1/.test(location.search), '雲端同步預設不開（cloud_config.js 沒填）');
+      ok(!(window.PuppyCloud && window.PuppyCloud.on), '自動測試時雲端同步不開（不會連到真的 Google 和老師的試算表）');
       state = loadState();
       state.typing = { who: { g: 5, c: 4, s: 30 }, lock: { at: 1 }, prog: { L01: 3 } };
       const cc = JSON.parse(window.PuppyApp.cloudCopy());
