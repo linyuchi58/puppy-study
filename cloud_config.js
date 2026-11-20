@@ -5,5 +5,5 @@
 // 設定方法請看《雲端同步/雲端同步設定說明.md》
 window.PUPPY_CLOUD = {
   clientId: '1042888099911-qa77hmok51ks43gcm4rl2qc40l2on817.apps.googleusercontent.com',
-  scriptUrl: ''   // v3.9.1：等老師用專用 Gmail（taiwan77@gmail.com）部署新版 Code.gs 後填入
+  scriptUrl: 'https://script.google.com/macros/s/AKfycbxE4jWxWwpAkguPJZmOiAgGtYD_DYfcf5VQk9GTcZnYLXXD5TT59m78R3IijTFzK16O/exec'   // taiwan77@gmail.com 的試算表（Code.gs 版本 2）
 };
