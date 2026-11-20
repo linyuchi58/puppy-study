@@ -6,7 +6,7 @@
   'use strict';
   const CFG = window.PUPPY_CLOUD || {};
   const TEST = /[?&](selftest|apptest)=1/.test(location.search);
-  const ON = !!(CFG.clientId && CFG.scriptUrl) && !TEST;    // 自動測試時不連真的 Google 和老師的試算表
+  const ON = !!CFG.scriptUrl && !TEST;          // 有 scriptUrl 就開；clientId 有填才多一顆 Google 登入    // 自動測試時不連真的 Google 和老師的試算表
   const META_KEY = 'puppy_study_cloud_v1' + (TEST ? '_selftest' : '');
   const SESS_KEY = META_KEY + '.sess';
   const PUSH_DELAY = 15000;       // 有新進度後 15 秒自動上傳（期間一直有新進度，最多 60 秒也會傳）
@@ -33,6 +33,8 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
   function app() { return window.PuppyApp; }
   function inExam() { return !!(window.PuppyTyping && window.PuppyTyping.isExam && window.PuppyTyping.isExam()); }
+  // 畫面上只顯示信箱的第一個字（同步碼給別人時，別人看不到完整信箱）
+  function maskEmail(e) { const m = String(e || '').match(/^(.)[^@]*(@.+)$/); return m ? m[1] + '***' + m[2] : String(e || ''); }
   function hhmm(d) { const z = n => String(n).padStart(2, '0'); return `${d.getMonth() + 1}/${d.getDate()} ${z(d.getHours())}:${z(d.getMinutes())}`; }
 
   async function api(body, keepalive) {
@@ -179,13 +181,42 @@
     return gisReady;
   }
 
-  async function onCredential(resp) {
-    const shared = !!(box && box.querySelector('#cloudShared') && box.querySelector('#cloudShared').checked);
+  // ── 三種登入：Google、同步碼、信箱驗證碼 ──
+  const ERR = {
+    bad_token: '⚠️ Google 登入沒有成功，請再試一次',
+    bad_sync: '⚠️ 找不到這組同步碼，請再檢查一次（8 個字，像 7KQM-2XPA）',
+    busy: '⚠️ 現在太多人打錯同步碼，請過幾分鐘再試',
+    bad_email: '⚠️ 信箱格式不對，請再檢查一次',
+    wait: '⏳ 剛剛寄過了，請等一分鐘再按',
+    too_many: '⚠️ 這個信箱這一小時寄太多次了，請過一陣子再試',
+    quota: '⚠️ 今天的驗證信已經寄完了，請明天再試（已經有同步碼的人可以直接用同步碼登入）',
+    bad_code: '⚠️ 驗證碼不對，請再看一次信裡的 6 個數字',
+    expired: '⚠️ 驗證碼過期或試太多次了，請重新寄一封'
+  };
+  function sharedChecked() { return !!(box && box.querySelector('#cloudShared') && box.querySelector('#cloudShared').checked); }
+  async function tryLogin(body) {
+    const shared = sharedChecked();
     setStatus('⏳ 登入中…');
     let r;
-    try { r = await api({ a: 'login', idToken: resp && resp.credential }); } catch (e) { setStatus('📶 連不上雲端，請確認網路後再試一次'); return; }
-    if (!r.ok) { setStatus(r.err === 'bad_token' ? '⚠️ 登入沒有成功，請再試一次' : '⚠️ 雲端暫時不能用，請稍後再試'); return; }
-    meta = { sub: r.sub, email: r.email, key: r.key, rev: r.cloud.rev, dirty: false, shared, sess: '', last: 0 };
+    try { r = await api(body); } catch (e) { setStatus('📶 連不上雲端，請確認網路後再試一次'); return false; }
+    if (!r.ok) { setStatus(ERR[r.err] || '⚠️ 雲端暫時不能用，請稍後再試'); return false; }
+    await afterLogin(r, shared);
+    return true;
+  }
+  function onCredential(resp) { return tryLogin({ a: 'login', idToken: resp && resp.credential }); }
+  function codeLogin(code) { return tryLogin({ a: 'codeLogin', syncCode: code }); }
+  function verifyEmail(email, code) { return tryLogin({ a: 'verifyCode', email, code }); }
+  async function sendCode(email) {
+    setStatus('⏳ 寄信中…');
+    let r;
+    try { r = await api({ a: 'sendCode', email }); } catch (e) { setStatus('📶 連不上雲端，請確認網路後再試一次'); return false; }
+    if (!r.ok) { setStatus(ERR[r.err] || '⚠️ 雲端暫時不能用，請稍後再試'); return false; }
+    setStatus('📧 驗證信寄出了！請到信箱找「汪汪小精靈 學習小伙伴」寄來的信（找不到請看垃圾郵件）');
+    return true;
+  }
+
+  async function afterLogin(r, shared) {
+    meta = { sub: r.sub, email: r.email, sync: r.syncCode || '', key: r.key, rev: r.cloud.rev, dirty: false, shared, sess: '', last: 0 };
     if (shared) { meta.sess = String(Date.now()) + Math.random().toString(36).slice(2); ssSet(SESS_KEY, meta.sess); }
     saveMeta();
     status = '✅ 登入成功';
@@ -259,7 +290,12 @@
       box.innerHTML = `
         <div class="card-box">
           <div class="section-title"><span>☁️ 雲端同步（已登入）</span></div>
-          <p class="section-sub" style="margin-bottom:6px;">帳號：<b>${esc(meta.email)}</b>${meta.shared ? '（共用電腦：關掉網頁後會自動登出）' : ''}</p>
+          <p class="section-sub" style="margin-bottom:6px;">帳號：<b>${esc(maskEmail(meta.email))}</b>${meta.shared ? '（共用電腦：關掉網頁後會自動登出）' : ''}</p>
+          ${meta.sync ? `<div style="background:#fff4c2;border-radius:14px;padding:10px 14px;margin:6px 0 10px;">
+            <div style="font-weight:800;">🔑 你的同步碼</div>
+            <div id="cloudSyncCode" style="font-size:1.8rem;font-weight:900;letter-spacing:.12em;font-family:monospace;">${esc(meta.sync)}</div>
+            <div class="section-sub" style="margin:0;">在別的電腦、平板輸入這組就能接著玩。請抄下來或拍照留著；忘記了可以用信箱找回。</div>
+          </div>` : ''}
           <p class="section-sub" id="cloudStatus" style="font-weight:800;margin-bottom:10px;">${esc(status || (meta.dirty ? '☁️ 有新進度，等一下會自動存到雲端' : '✅ 已同步'))}</p>
           <div style="display:flex;gap:10px;flex-wrap:wrap;">
             <button class="btn btn-green" id="cloudSyncNow">🔄 立刻同步</button>
@@ -278,26 +314,69 @@
     } else {
       box.innerHTML = `
         <div class="card-box">
-          <div class="section-title"><span>☁️ 用 Google 帳號同步進度（自由選擇）</span></div>
+          <div class="section-title"><span>☁️ 在學校、家裡都玩同一份進度（自由選擇）</span></div>
           <p class="section-sub">
-            想在學校和家裡都玩同一份進度，可以用 Google 帳號登入。登入後進度會自動存到老師的 Google 試算表，
-            換一台電腦或平板登入，就能接著玩。<b>不登入也完全沒關係</b>，進度會照常存在這台裝置。
-          </p>
-          <p class="section-sub" style="font-size:.85rem;">
-            會存的只有：Google 帳號編號、信箱、學習進度（星星、經驗值、練習紀錄、狗狗）。不存姓名、班級、座號。隨時可以刪除。 <a href="./privacy.html" target="_blank" rel="noopener">隱私權政策</a>
+            登入後進度會自動存到雲端，換一台電腦或平板登入就能接著玩。<b>不登入也完全沒關係</b>，進度會照常存在這台裝置。
+            會存的只有：信箱、學習進度（星星、經驗值、練習紀錄、狗狗），不存姓名、班級、座號，隨時可以刪除。
+            <a href="./privacy.html" target="_blank" rel="noopener">隱私權政策</a>
           </p>
           <label style="display:flex;align-items:center;gap:8px;font-weight:800;margin:8px 0 12px;cursor:pointer;">
             <input type="checkbox" id="cloudShared" style="width:22px;height:22px;"> 這是共用電腦（電腦教室），關掉網頁就自動登出
           </label>
-          <div id="cloudBtn" style="min-height:44px;"></div>
-          <p class="section-sub" id="cloudStatus" style="font-weight:800;margin-top:8px;">${esc(status)}</p>
+          <div style="display:grid;gap:12px;">
+            <div style="background:#fffaf2;border:2px solid #e6d9c8;border-radius:16px;padding:12px 14px;">
+              <div style="font-weight:900;margin-bottom:6px;">🔑 我已經有同步碼</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <input id="cloudSyncIn" maxlength="12" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="例如 7KQM-2XPA"
+                  style="flex:1;min-width:160px;font-size:1.3rem;letter-spacing:.1em;padding:8px 12px;border-radius:12px;border:2px solid #d8c8b4;font-family:monospace;text-transform:uppercase;">
+                <button class="btn btn-green" id="cloudSyncGo">登入</button>
+              </div>
+            </div>
+            <div style="background:#fffaf2;border:2px solid #e6d9c8;border-radius:16px;padding:12px 14px;">
+              <div style="font-weight:900;margin-bottom:6px;">📧 第一次使用，或忘記同步碼：用信箱</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <input id="cloudMailIn" type="email" autocomplete="email" placeholder="你的信箱（學校信箱也可以）"
+                  style="flex:1;min-width:200px;font-size:1.05rem;padding:8px 12px;border-radius:12px;border:2px solid #d8c8b4;">
+                <button class="btn btn-soft" id="cloudMailGo">寄驗證碼</button>
+              </div>
+              <div id="cloudCodeRow" style="display:none;gap:8px;flex-wrap:wrap;margin-top:8px;">
+                <input id="cloudCodeIn" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="信裡的 6 個數字"
+                  style="flex:1;min-width:160px;font-size:1.3rem;letter-spacing:.2em;padding:8px 12px;border-radius:12px;border:2px solid #d8c8b4;">
+                <button class="btn btn-green" id="cloudCodeGo">確認</button>
+              </div>
+            </div>
+            ${CFG.clientId ? `<div style="padding:0 4px;"><div class="section-sub" style="margin-bottom:6px;">有私人 Gmail 也可以直接：</div><div id="cloudBtn" style="min-height:44px;"></div></div>` : ''}
+          </div>
+          <p class="section-sub" id="cloudStatus" style="font-weight:800;margin-top:10px;">${esc(status)}</p>
         </div>`;
-      const target = box.querySelector('#cloudBtn');
-      loadGis().then(() => {
-        const g = window.google.accounts.id;
-        g.initialize({ client_id: CFG.clientId, callback: onCredential, ux_mode: 'popup', auto_select: false, cancel_on_tap_outside: true });
-        g.renderButton(target, { type: 'standard', theme: 'outline', size: 'large', text: 'signin_with', shape: 'pill', locale: 'zh-TW' });
-      }).catch(() => { target.innerHTML = '<span class="section-sub">連不上 Google 登入（可能沒有網路，或學校網路擋住了）。</span>'; });
+      const q = id => box.querySelector(id);
+      q('#cloudSyncGo').onclick = () => { const v = q('#cloudSyncIn').value.trim(); if (v) codeLogin(v); else setStatus('請先輸入同步碼'); };
+      q('#cloudSyncIn').onkeydown = ev => { if (ev.key === 'Enter') q('#cloudSyncGo').click(); };
+      q('#cloudMailGo').onclick = async () => {
+        const email = q('#cloudMailIn').value.trim();
+        if (!email) { setStatus('請先輸入信箱'); return; }
+        const b = q('#cloudMailGo'); b.disabled = true;
+        const sent = await sendCode(email);
+        if (sent) { q('#cloudCodeRow').style.display = 'flex'; q('#cloudCodeIn').focus(); }
+        let left = sent ? 60 : 0;
+        const tick = () => { if (!b.isConnected) return; if (left > 0) { b.textContent = `再寄一次（${left}）`; left--; setTimeout(tick, 1000); } else { b.disabled = false; b.textContent = sent ? '再寄一次' : '寄驗證碼'; } };
+        tick();
+      };
+      q('#cloudMailIn').onkeydown = ev => { if (ev.key === 'Enter') q('#cloudMailGo').click(); };
+      q('#cloudCodeGo').onclick = () => {
+        const code = q('#cloudCodeIn').value.replace(/\D/g, '');
+        if (code.length !== 6) { setStatus('驗證碼是 6 個數字'); return; }
+        verifyEmail(q('#cloudMailIn').value.trim(), code);
+      };
+      q('#cloudCodeIn').onkeydown = ev => { if (ev.key === 'Enter') q('#cloudCodeGo').click(); };
+      const target = q('#cloudBtn');
+      if (target) {
+        loadGis().then(() => {
+          const g = window.google.accounts.id;
+          g.initialize({ client_id: CFG.clientId, callback: onCredential, ux_mode: 'popup', auto_select: false, cancel_on_tap_outside: true });
+          g.renderButton(target, { type: 'standard', theme: 'outline', size: 'large', text: 'signin_with', shape: 'pill', locale: 'zh-TW' });
+        }).catch(() => { target.innerHTML = '<span class="section-sub">連不上 Google 登入（可能沒有網路，或學校網路擋住了）。</span>'; });
+      }
     }
     paintStatus();
   }
@@ -345,6 +424,6 @@
   window.PuppyCloud = {
     on: ON, changed, render, start,
     signedIn: () => !!meta, meta: () => meta, status: () => status,
-    _t: { push, pull, onCredential, logout, deleteCloud, autoMerge, adopt }
+    _t: { push, pull, onCredential, codeLogin, sendCode, verifyEmail, logout, deleteCloud, autoMerge, adopt }
   };
 })();
