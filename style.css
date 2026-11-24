@@ -961,3 +961,7 @@ body.ty-exam .modal-backdrop { z-index: 600; }
 .ty-unlock-msg { min-height: 1.4em; margin-top: 6px; color: var(--red); font-weight: 800; }
 
 .ty-ver { text-align: center; color: var(--muted); font-size: 0.8rem; margin-top: 8px; }
+/* v3.9.4：認真練習 5 分鐘的骨頭餅乾 */
+.ty-treat { margin: 10px auto 0; max-width: 560px; padding: 8px 12px; border-radius: 14px; background: #fff1d6; border: 2px solid #f0a020; color: #8a4b00; font-weight: 900; }
+.ty-treat-pill { display: inline-block; padding: 3px 10px; border-radius: 999px; background: #fff7e8; border: 1px dashed #e0a040; color: #8a5a10; font-size: .85rem; font-weight: 700; }
+.ty-treat-pill.done { background: #eef9f1; border-color: #2fa86a; color: #1f7a4c; }

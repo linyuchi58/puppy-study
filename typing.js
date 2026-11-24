@@ -346,19 +346,22 @@
     return { ok, miss, covered, hit };
   }
 
-  function scoreOf(ok, miss) {
+  // v3.9.4：中文打字除了「，。」以外的標點，每打對一個多 1 分（bonus）；正確率照原本算
+  const BONUS_PUNCT = /[、；：？！「」『』（）《》〈〉…—～]/;
+  function scoreOf(ok, miss, bonus) {
     const tot = ok + miss;
     if (!tot) return 0;
-    return Math.round(ok * (ok / tot));
+    return Math.round((ok + (bonus || 0)) * (ok / tot));
   }
 
   // 給老師掃描的成績資料：PZT1|測驗碼|年|班|座|第幾次|得分|對|錯|正確率×10|每分鐘|亂按|自己挑戰|時間|檢查碼
   // v3.8.1：QR 內容縮短，而且只用數字、大寫字母和點（QR 的「英數模式」），
   //   QR 的格子少很多、每格變大，老師的手機遠一點、斜一點也掃得到。
-  //   Z2.測驗碼.年.班.座.第幾次.打對.打錯.亂按.自己挑戰.時間(yyMMddHHmm).檢查碼
+  //   Z3.測驗碼.年.班.座.第幾次.打對.打錯.亂按.自己挑戰.標點加分.時間(yyMMddHHmm).檢查碼（v3.9.4；舊版 Z2 沒有標點加分）
   //   得分、正確率、速度都可以從打對／打錯和測驗碼算回來，所以不放進去。
   function qrPayload(r) {
-    const body = ['Z2', r.code, r.g, r.c, r.s, r.attempt, r.ok, r.miss, r.mash, r.self ? 1 : 0, String(r.when).slice(-10)].join('.');
+    // v3.9.4：Z3 多一欄「標點加分」；老師頁 Z2、Z3 都讀得懂
+    const body = ['Z3', r.code, r.g, r.c, r.s, r.attempt, r.ok, r.miss, r.mash, r.self ? 1 : 0, r.bonus || 0, String(r.when).slice(-10)].join('.');
     const chk = window.PuppyStamp ? window.PuppyStamp.code(QR_KEY, body) : '000000';
     return body + '.' + chk;
   }
@@ -391,6 +394,36 @@
     if (!t.who || typeof t.who !== 'object') t.who = { g: 0, c: 0, s: 0 };
     return t;
   }
+  // v3.9.4：認真練習 5 分鐘，狗狗吃一塊骨頭餅乾（一天最多 3 次）
+  // 「認真」＝有效練習時間（發呆、離開不算）；正確率低於 70% 的那一回不算；被抓到亂按，每次扣 10 秒
+  const TREAT_MS = 5 * 60000, TREAT_MAX = 3, TREAT_MIN_ACC = 70;
+  function treatBox() {
+    const c = common();
+    const d = todayStr();
+    if (!c.treat || typeof c.treat !== 'object' || c.treat.day !== d) c.treat = { day: d, ms: 0, n: 0 };
+    return c.treat;
+  }
+  function creditSerious(ms, acc, mash) {
+    const tb = treatBox();
+    if (!(acc >= TREAT_MIN_ACC)) return 0;
+    tb.ms += Math.max(0, Math.round(ms) - (mash || 0) * 10000);
+    let got = 0;
+    while (tb.n < TREAT_MAX && tb.ms >= (tb.n + 1) * TREAT_MS) { tb.n += 1; got += 1; }
+    if (got && api.treat) { try { api.treat(got, tb.n); } catch (e) { /* 忽略 */ } }
+    return got;
+  }
+  function treatLine(got) {
+    const tb = treatBox();
+    if (got) return `<p class="ty-treat">🦴 認真練習滿 ${tb.n * 5} 分鐘！狗狗吃到骨頭餅乾${got > 1 ? ` ×${got}` : ''}（飽足 +15、親密度 +2）・今天 ${tb.n}／${TREAT_MAX}</p>`;
+    return '';
+  }
+  function treatPill() {
+    const tb = treatBox();
+    if (tb.n >= TREAT_MAX) return `<span class="ty-treat-pill done">🦴 今天的骨頭餅乾都拿到了（${TREAT_MAX}／${TREAT_MAX}）</span>`;
+    const left = Math.max(0, Math.ceil(((tb.n + 1) * TREAT_MS - tb.ms) / 60000));
+    return `<span class="ty-treat-pill">🦴 再認真練習約 ${left} 分鐘，狗狗可以吃骨頭餅乾（今天 ${tb.n}／${TREAT_MAX}）</span>`;
+  }
+
   function today(m) {
     const t = storeOf(m || mode);
     const d = todayStr();
@@ -611,7 +644,11 @@
     run.miss = c.miss;
     run.pos = c.covered;
     run.errAt = {};
-    for (let i = 0; i < c.covered; i++) if (!c.hit[i]) run.errAt[i] = true;
+    run.bonus = 0;
+    for (let i = 0; i < c.covered; i++) {
+      if (!c.hit[i]) run.errAt[i] = true;
+      else if (BONUS_PUNCT.test(run.text[i])) run.bonus++;
+    }
     run.recent = [];
     for (let i = Math.max(0, c.covered - 20); i < c.covered; i++) run.recent.push(!!c.hit[i]);
     // 速度不合理（貼上、語音、手寫輸入）：測驗 20 秒以後才判斷
@@ -853,7 +890,8 @@
     }
     if (stars === 0) note = '這一次有亂按，所以沒有星星。慢慢打、打對比較重要喔！';
     const weakHere = Object.keys(run.keyMiss).sort((a, b) => run.keyMiss[b] - run.keyMiss[a]).slice(0, 3);
-    lastResult = { id: run.id, mode, title: run.title, acc, rate, stars, xp, gotStars, note, weakHere, mash: run.mash, ms: run.activeMs, ok: run.ok, miss: run.miss };
+    const treat = creditSerious(run.activeMs, acc, run.mash);
+    lastResult = { id: run.id, mode, title: run.title, acc, rate, stars, xp, gotStars, note, weakHere, mash: run.mash, ms: run.activeMs, ok: run.ok, miss: run.miss, treat };
     run = null;
     view = 'result';
     if (api.focus) api.focus(false);
@@ -876,7 +914,8 @@
     d.ms += info.secs * 1000;
     const total = run.ok + run.miss;
     const acc = total ? Math.round(run.ok / total * 1000) / 10 : 0;
-    const score = scoreOf(run.ok, run.miss);
+    const bonus = mode === 'cn' ? (run.bonus || 0) : 0;
+    const score = scoreOf(run.ok, run.miss, bonus);
     const rate = Math.round(mode === 'en' ? run.ok / 5 / info.minutes : run.ok / info.minutes);
     const c = common();
     const rec = c.tests[info.code] || { n: test.attempt, best: 0 };
@@ -899,9 +938,10 @@
     const who = c.who;
     const res = {
       code: info.code, g: who.g || 0, c: who.c || 0, s: who.s || 0, attempt: test.attempt, score, ok: run.ok, miss: run.miss,
-      acc, rate, mash: run.mash, self: test.self, when: stampNow()
+      acc, rate, mash: run.mash, self: test.self, bonus, when: stampNow()
     };
     lastResult = Object.assign({ test: true, mode, info, xp, prevBest, newBest: score > prevBest && prevBest > 0, qr: qrPayload(res) }, res);
+    lastResult.treat = creditSerious(run.activeMs, acc, run.mash);   // 測驗的有效時間也算認真練習
     // 全班測驗：鎖在 QR 畫面（存起來，重新整理也一樣），要老師的解除密碼才能離開
     if (!test.self) {
       c.lock = { res, qr: lastResult.qr, xp, at: Date.now() };
@@ -1008,6 +1048,7 @@
         <button class="ty-test-btn" id="tyTestBtn">🏁 全班測驗／自己挑戰</button>
         ${(() => { const lt = common().lastTest; return lt && lt.at && Date.now() - lt.at < 7 * 86400000 && !common().lock ? `<button class="ty-last-test" id="tyLastTest">📋 上一次全班測驗成績 QR（${lt.res.g}年${lt.res.c}班${lt.res.s}號・${lt.res.score} 分）</button>` : ''; })()}
         <div class="section-title" style="margin-top:12px;"><span>${{ en: '⌨️ 英打練習', zh: 'ㄅ 注音鍵位練習', cn: '中 中文打字練習' }[mode]}</span><span class="ty-today-pill">今天有效練習 ${min} 分 ${sec} 秒</span></div>
+        <div style="margin:4px 0 8px;">${treatPill()}</div>
         ${coarse ? '<p class="ty-warn">這台裝置看起來沒有接實體鍵盤。打字練習要用真的鍵盤，請接上鍵盤或改用電腦。</p>' : ''}
         <p class="section-sub">${intro}</p>
         ${mode === 'en' ? `<div class="ty-tracks">
@@ -1124,7 +1165,7 @@
         </ul>
         <p class="section-sub">${info.mode === 'cn'
           ? '請先把輸入法切到<b>微軟注音（中文）</b>。打錯可以繼續往下打，最後一起算；標點要用全形，不能貼上。'
-          : '題目不需要按空白鍵；每 5 個字之間的間隔只是方便看。打錯不會往前跳。'}<br>得分＝打對的字數 × 正確率。</p>
+          : '題目不需要按空白鍵；每 5 個字之間的間隔只是方便看。打錯不會往前跳。'}<br>${info.mode === 'cn' ? '得分＝（打對的字數＋<b>標點加分</b>）× 正確率。<b>「，。」以外的標點，每打對一個多 1 分！</b>' : '得分＝打對的字數 × 正確率。'}</p>
         ${info.mode === 'cn' ? `<div class="ty-ime-try">
           <b>✍️ 開始前，先在這裡試打一個字，確認輸入法是「微軟注音」</b>
           <div class="ty-ime-try-row"><input id="tyTry" autocomplete="off" spellcheck="false" placeholder="試打：例如「我」">${imeChipHtml()}</div>
@@ -1191,6 +1232,7 @@
         <div class="ty-big-stars">${r.stars ? '★'.repeat(r.stars) + '☆'.repeat(3 - r.stars) : '☆☆☆'}</div>
         <h2>${esc(r.title)}</h2>
         <p class="ty-note">${esc(r.note)}</p>
+        ${treatLine(r.treat)}
         <div class="ty-stats">
           <div><b>${r.acc}%</b><span>正確率</span></div>
           <div><b>${r.rate}</b><span>${r.mode === 'zh' ? '每分鐘符號數' : '每分鐘字數'}</span></div>
@@ -1236,6 +1278,8 @@
           <div><b>${r.rate}</b><span>${r.mode === 'zh' ? '每分鐘符號數' : '每分鐘字數'}</span></div>
           <div class="${r.mash ? 'bad' : ''}"><b>${r.mash}</b><span>${r.mode === 'cn' ? '可疑操作' : '亂按次數'}</span></div>
         </div>
+        ${r.bonus ? `<p class="ty-note">✨ 標點加分 +${r.bonus}（「，。」以外的標點，每打對一個多 1 分）</p>` : ''}
+        ${treatLine(r.treat)}
         ${r.xp ? `<p class="section-sub">獲得 +${r.xp} 經驗值</p>` : ''}
         ${r.review ? `<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:10px;">
           <button class="btn btn-soft" id="tyDone">回到打字練習</button>
@@ -1508,7 +1552,7 @@
       LETTER_LESSONS, ZH_LESSONS, FINGER_OF, LETTERS_BEFORE, ZH_OF_KEY, KEY_OF_ZH, CODE_KEY, MODES,
       CN_LESSONS, cnText, cnCompare, cnEvaluate, TIMES,
       makeText, makeRun, startLesson, handleKey, starsFor, unlockedIndex, parseCode, makeCode, testText, scoreOf, qrPayload,
-      prepareTest, startTest, finishTest, common, unlockCode, isExam: () => exam, releaseLock, showLastTest, lockExpired, LOCK_MAX_MS, guessFrom, setIme, imeGuess: () => imeGuess, checkUnsent, cnEvaluate,
+      prepareTest, startTest, finishTest, common, unlockCode, creditSerious, treatBox, TREAT_MS, isExam: () => exam, releaseLock, showLastTest, lockExpired, LOCK_MAX_MS, guessFrom, setIme, imeGuess: () => imeGuess, checkUnsent, cnEvaluate,
       _comp: (on, data, since) => { composing = on; compData = data || ''; compSince = since || 0; },
       run: () => run, result: () => lastResult, view: () => view, status, quit, data,
       setRun: patch => Object.assign(run, patch), setMode: m => { mode = m; }

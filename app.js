@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.9.3';
-  const APP_BUILD = '20261124-1';
+  const APP_VERSION = 'v3.9.4';
+  const APP_BUILD = '20261124-2';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
@@ -2457,6 +2457,15 @@
       save: () => saveState(),
       award: (xp, stars, subj, text) => award(xp, stars, subj, text),
       petSay: msg => petSay(msg, 'normal'),
+      // v3.9.4：認真練習 5 分鐘的骨頭餅乾：飽足 +15、親密度 +2
+      treat: (n, todayN) => {
+        const k = Math.max(1, n || 1);
+        addFullness(15 * k);
+        const res = addBond(2 * k);
+        saveState();
+        const name = (PETS.find(r => r[0] === state.pets.current) || [])[2] || '狗狗';
+        if (!announceBond(res, name)) petSay(`🦴 謝謝你認真練習打字！${name} 吃到骨頭餅乾了，好好吃～（今天 ${todayN}／3）`, 'happy');
+      },
       focus: () => syncFocusMode()
     });
   }
@@ -2722,8 +2731,8 @@
         tyP.querySelector('#tyUnlockGo').click();
         ok(T.view() === 'home' && !T.isExam() && !T.common().lock && !document.body.classList.contains('ty-exam'), '輸入正確的解除密碼才回到一般練習');
         const parts = tr.qr.split('.');
-        ok(parts.length === 12 && parts[0] === 'Z2' && parts[1] === '120101' && parts[2] === '4' && parts[3] === '3' && parts[4] === '12' && parts[5] === '1' && parts[6] === '19' && parts[7] === '1', 'QR 內容有測驗碼、年班座號、次數、打對打錯（v3.8.1 短格式）');
-        ok(window.PuppyStamp.code(window.PuppyTyping.QR_KEY, parts.slice(0, 11).join('.')) === parts[11], 'QR 檢查碼正確（老師端可以驗證）');
+        ok(parts.length === 13 && parts[0] === 'Z3' && parts[1] === '120101' && parts[2] === '4' && parts[3] === '3' && parts[4] === '12' && parts[5] === '1' && parts[6] === '19' && parts[7] === '1' && parts[10] === '0', 'QR 內容有測驗碼、年班座號、次數、打對打錯、標點加分（v3.9.4 Z3 格式）');
+        ok(window.PuppyStamp.code(window.PuppyTyping.QR_KEY, parts.slice(0, 12).join('.')) === parts[12], 'QR 檢查碼正確（老師端可以驗證）');
         ok(/^[0-9A-Z.]+$/.test(tr.qr) && tr.qr.length < 60, 'QR 只用數字、大寫和點（英數模式，格子少、好掃）');
         T.prepareTest('120101', false);
         T.startTest();
@@ -2826,6 +2835,18 @@
       ok(restoreDaily(todayStr(-2)) === false && listDailyBackups().every(b => b.day !== todayStr(-2)), '壞掉或被改過的備份不能還原');
       dailyKeys().forEach(k => localStorage.removeItem(k));
       try { localStorage.removeItem(STORAGE_KEY + '.before_restore'); } catch (e) { /* 忽略 */ }
+      // v3.9.4：不適合國小的字已從詞庫拿掉
+      { const ws = new Set(((window.VOCAB_CEEC && window.VOCAB_CEEC.words) || []).map(w => String(w.s || '').toLowerCase()));
+        ok(ws.size > 5900 && !ws.has('gay') && !ws.has('sex') && !ws.has('naked') && ws.has('goose') && ws.has('apple'), '詞庫拿掉不適合國小的字（gay、sex、naked…），一般字還在');
+        const goose = window.VOCAB_CEEC.words.find(w => w.s === 'goose');
+        ok(goose && !/性/.test(goose.z), '一般字裡不雅的中文解釋已改掉（goose）'); }
+      // v3.9.4：認真練習 5 分鐘，狗狗吃骨頭餅乾（一天最多 3 次；正確率低於 70% 不算）
+      { const TT = window.PuppyTyping._t; const c = TT.common(); delete c.treat;
+        const f0 = state.pets.fullness;
+        const g1 = TT.creditSerious(4 * 60000, 95, 0), g2 = TT.creditSerious(90000, 95, 0), g3 = TT.creditSerious(10 * 60000, 50, 0), g4 = TT.creditSerious(20 * 60000, 90, 0);
+        ok(g1 === 0 && g2 === 1 && g3 === 0 && g4 === 2 && TT.treatBox().n === 3 && TT.creditSerious(30 * 60000, 99, 0) === 0, '認真練習：滿 5 分鐘給 1 次、正確率太低不算、一天最多 3 次');
+        ok(state.pets.fullness >= Math.min(100, f0 + 15), '骨頭餅乾讓飽足度增加');
+        delete c.treat; }
       // v3.9.3：從打出來的字猜輸入法
       const gf = window.PuppyTyping._t.guessFrom;
       ok(gf('a') === 'en' && gf('我') === 'zh' && gf('Ａ') === 'full' && gf('ㄅ') === 'zh' && gf(',') === 'halfp' && gf('') === '', '從打出來的字猜輸入法（英文、中文、全形、半形符號）');

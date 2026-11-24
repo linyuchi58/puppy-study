@@ -174,10 +174,10 @@
     </section>
   </main>
 
-  <script src="./stamp.js?v=20261124-1"></script>
-  <script src="./typing.js?v=20261124-1"></script>
-  <script src="./jsqr.js?v=20261124-1"></script>
-  <script src="./zxing_reader.js?v=20261124-1"></script>
+  <script src="./stamp.js?v=20261124-2"></script>
+  <script src="./typing.js?v=20261124-2"></script>
+  <script src="./jsqr.js?v=20261124-2"></script>
+  <script src="./zxing_reader.js?v=20261124-2"></script>
   <script>
   (function () {
     'use strict';
@@ -283,17 +283,21 @@
     // 讀一筆 QR：新版（v3.8.1 起）Z2.… 和舊版 PZT1|… 都收
     function parsePayload(text) {
       const t = String(text || '').trim();
-      if (/^Z2\./.test(t)) {
+      // v3.9.4：Z3 多一欄「標點加分」（中文打字「，。」以外的標點每個多 1 分）；Z2 是舊格式，沒有加分
+      if (/^Z[23]\./.test(t)) {
         const p = t.split('.');
-        if (p.length !== 12) return [null, '這不是學習小伙伴的成績 QR Code'];
-        if (window.PuppyStamp.code(PT.QR_KEY, p.slice(0, 11).join('.')) !== p[11]) return [null, 'QR Code 檢查碼不對（可能被改過）'];
+        const z3 = p[0] === 'Z3';
+        const N = z3 ? 13 : 12;
+        if (p.length !== N) return [null, '這不是學習小伙伴的成績 QR Code'];
+        if (window.PuppyStamp.code(PT.QR_KEY, p.slice(0, N - 1).join('.')) !== p[N - 1]) return [null, 'QR Code 檢查碼不對（可能被改過）'];
         const info = PT.parseCode(p[1]);
         if (!info) return [null, '測驗碼不對'];
         const n = i => +p[i] || 0;
         const ok = n(6), miss = n(7), tot = ok + miss;
+        const bonus = z3 ? n(10) : 0;
         return [{
-          code: p[1], g: n(2), c: n(3), s: n(4), attempt: n(5), ok, miss, mash: n(8), self: p[9] === '1', when: '20' + p[10],
-          score: tot ? Math.round(ok * ok / tot) : 0, acc: tot ? Math.round(ok / tot * 1000) / 10 : 0,
+          code: p[1], g: n(2), c: n(3), s: n(4), attempt: n(5), ok, miss, mash: n(8), self: p[9] === '1', bonus, when: '20' + p[z3 ? 11 : 10],
+          score: tot ? Math.round((ok + bonus) * ok / tot) : 0, acc: tot ? Math.round(ok / tot * 1000) / 10 : 0,
           rate: Math.round(info.mode === 'en' ? ok / 5 / info.minutes : ok / info.minutes)
         }];
       }
@@ -442,7 +446,7 @@
     try {
       if (window.ZXingWASM && window.WebAssembly) {
         window.ZXingWASM.prepareZXingModule({
-          overrides: { locateFile: (path, prefix) => (path.endsWith('.wasm') ? './zxing_reader.wasm?v=20261124-1' : prefix + path) },
+          overrides: { locateFile: (path, prefix) => (path.endsWith('.wasm') ? './zxing_reader.wasm?v=20261124-2' : prefix + path) },
           fireImmediately: true
         }).then(() => { zx = window.ZXingWASM; }).catch(() => { zx = null; });
       }
@@ -777,12 +781,21 @@
         ok(document.querySelectorAll('#zoomRow button').length === 5, '鏡頭拉近有 1×～5× 五個按鈕');
         // v3.8.1：新版短 QR（Z2.）也收得到，分數由打對／打錯算回來；解除密碼大字顯示
         const z2 = PT._t.qrPayload({ code: '140217', g: 5, c: 1, s: 9, attempt: 1, ok: 90, miss: 10, mash: 0, self: false, when: '202611171200' });
-        ok(/^Z2\.[0-9.]+$/.test(z2) && z2.length < 60, '新版 QR 內容只有數字和點、比較短：' + z2);
+        ok(/^Z3\.[0-9.]+$/.test(z2) && z2.length < 64, '新版 QR 內容只有數字和點、比較短：' + z2);
         const zr = addPayload(z2);
         const zrow = rows.find(r => r.code === '140217' && r.s === 9);
         ok(zr[0] && zrow && zrow.score === 81 && zrow.acc === 90 && zrow.rate === 6, '新版 QR：90 對 10 錯 → 81 分、90%、每分鐘 6 字（3 分鐘英打）');
         ok(addPayload(z2.replace('.90.', '.99.'))[0] === false, '新版 QR 被改過也會擋下');
         ok($('unlockBig').textContent.includes(PT.unlockCode('140217')), '掃到 QR 後上方大字顯示解除密碼');
+        // v3.9.4：中文打字標點加分；舊的 Z2 也照樣收（沒有加分）
+        const z3 = PT._t.qrPayload({ code: '310111', g: 5, c: 1, s: 11, attempt: 1, ok: 40, miss: 10, mash: 0, self: false, bonus: 5, when: '202611241130' });
+        addPayload(z3);
+        const b3 = rows.find(r => r.code === '310111' && r.s === 11);
+        ok(b3 && b3.bonus === 5 && b3.score === 36, '標點加分：40 對 10 錯、加分 5 →（40＋5）× 80% ＝ 36 分');
+        const z2body = ['Z2', '310111', 5, 1, 12, 1, 40, 10, 0, 0, '2611241131'].join('.');
+        const z2old = z2body + '.' + window.PuppyStamp.code(PT.QR_KEY, z2body);
+        ok(addPayload(z2old)[0] && rows.find(r => r.code === '310111' && r.s === 12).score === 32, '舊格式 Z2 還是收得到（沒有加分：40 × 80% ＝ 32 分）');
+        ok(addPayload(z3.replace('.5.2611', '.9.2611'))[0] === false, '標點加分被改過也會擋下');
         $('lookCode').value = '360221'; $('lookGo').onclick();
         ok($('unlockBig').textContent.includes(PT.unlockCode('360221')), '輸入測驗碼也能查解除密碼');
         // v3.8.2：掃到「已經收過」的也要把表格切到那一組；鏡頭下方即時清單
