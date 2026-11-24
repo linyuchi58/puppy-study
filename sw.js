@@ -2,7 +2,7 @@
 // v3.8.1：改成「先上網拿最新版，連不上才用快取」。
 //   以前是「先用快取」，學生打開時會拿到之前存的舊版（全班測驗時有人是舊版，沒有測驗模式）。
 //   新版啟用時，會把已經打開的頁面自動重新整理一次，確保全班都是同一版。
-const CACHE_NAME = 'puppy-study-web-v3.9.4-20261124-3';
+const CACHE_NAME = 'puppy-study-web-v3.10.0-20261124-4';
 const ASSETS = [
   './',
   './index.html',
@@ -14,7 +14,7 @@ const ASSETS = [
   './stamp.js',
   './zh_texts.js',
   './typing.js',
-  './parent.html', './teacher.html', './jsqr.js', './zxing_reader.js', './zxing_reader.wasm', './counter.js', './cloud.js', './cloud_merge.js', './cloud_config.js',
+  './parent.html', './teacher.html', './jsqr.js', './zxing_reader.js', './zxing_reader.wasm', './counter.js', './cloud.js', './math.js', './cloud_merge.js', './cloud_config.js',
   './manifest.json'
 ];
 

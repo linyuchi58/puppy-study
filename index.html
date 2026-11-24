@@ -7,9 +7,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="學習小伙伴">
   <meta name="theme-color" content="#2fa86b">
-  <title>汪汪小精靈 學習小伙伴（平板／網頁版 v3.9.4）</title>
+  <title>汪汪小精靈 學習小伙伴（平板／網頁版 v3.10.0）</title>
   <link rel="manifest" href="./manifest.json">
-  <link rel="stylesheet" href="./style.css?v=20261124-3">
+  <link rel="stylesheet" href="./style.css?v=20261124-4">
 </head>
 <body>
   <!-- 頂部狀態列 -->
@@ -91,6 +91,7 @@
 
       <!-- 分頁：打字練習（英打＋注音鍵位＋中文打字＋全班測驗，內容由 typing.js 產生） -->
       <div id="tab-typing" class="tab-pane" style="display:none;"></div>
+      <div id="tab-math" class="tab-pane" style="display:none;"></div>
 
       <!-- 分頁 3：寵物圖鑑與配件 -->
       <div id="tab-dex" class="tab-pane" style="display:none;"></div>
@@ -114,6 +115,9 @@
     <button class="nav-tab" data-tab="typing">
       <span class="nav-ico" aria-hidden="true">⌨️</span><span class="nav-lbl">打字練習</span>
     </button>
+    <button class="nav-tab" data-tab="math">
+      <span class="nav-ico" aria-hidden="true">🧮</span><span class="nav-lbl">心算挑戰</span>
+    </button>
     <button class="nav-tab" data-tab="dex">
       <span class="nav-ico" aria-hidden="true">📖</span><span class="nav-lbl">寵物圖鑑</span>
     </button>
@@ -130,17 +134,18 @@
     <div id="modalCard" class="modal-card"></div>
   </div>
 
-  <script src="./vocab_data.js?v=20261124-3"></script>
-  <script src="./vocab_filter.js?v=20261124-3"></script>
-  <script src="./qrcode.js?v=20261124-3"></script>
-  <script src="./stamp.js?v=20261124-3"></script>
-  <script src="./zh_texts.js?v=20261124-3"></script>
-  <script src="./typing.js?v=20261124-3"></script>
-  <script src="./pet_engine.js?v=20261124-3"></script>
-  <script src="./counter.js?v=20261124-3"></script>
-  <script src="./cloud_config.js?v=20261124-3"></script>
-  <script src="./cloud_merge.js?v=20261124-3"></script>
-  <script src="./cloud.js?v=20261124-3"></script>
-  <script src="./app.js?v=20261124-3"></script>
+  <script src="./vocab_data.js?v=20261124-4"></script>
+  <script src="./vocab_filter.js?v=20261124-4"></script>
+  <script src="./qrcode.js?v=20261124-4"></script>
+  <script src="./stamp.js?v=20261124-4"></script>
+  <script src="./zh_texts.js?v=20261124-4"></script>
+  <script src="./typing.js?v=20261124-4"></script>
+  <script src="./math.js?v=20261124-4"></script>
+  <script src="./pet_engine.js?v=20261124-4"></script>
+  <script src="./counter.js?v=20261124-4"></script>
+  <script src="./cloud_config.js?v=20261124-4"></script>
+  <script src="./cloud_merge.js?v=20261124-4"></script>
+  <script src="./cloud.js?v=20261124-4"></script>
+  <script src="./app.js?v=20261124-4"></script>
 </body>
 </html>

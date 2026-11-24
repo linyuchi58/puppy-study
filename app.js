@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.9.4';
-  const APP_BUILD = '20261124-3';
+  const APP_VERSION = 'v3.10.0';
+  const APP_BUILD = '20261124-4';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
@@ -51,7 +51,7 @@
     ['dog:黑頭三色柯基', '🐕', '三色柯基', 'homework', 'days10', '累積學習 10 天（不用連續）', 10],   // v3.7.2：原本「挑戰包過 3 關」
     ['dog:柴犬', '🐕', '柴犬', 'english', 'eng5', '英語闖關完成 5 關', 5],
     ['dog:米格魯', '🐕', '米格魯', 'english', 'streak3', '連續學習 3 天', 3],
-    ['dog:哈士奇', '🐕', '哈士奇', 'typing', 'math150', '打字練習完成 30 回（英打、注音、中文都算；電腦版算術答對 150 題也可以）', 30],   // v3.9.0：網頁版沒有算術
+    ['dog:哈士奇', '🐕', '哈士奇', 'typing', 'math150', '心算一次就答對 150 題，或打字練習完成 30 回', 30],   // v3.10.0：網頁版有心算了
     ['dog:大麥町', '🐕', '大麥町', 'homework', 'hw15', '自我打卡累積 15 項', 15],
     ['dog:巧克力拉布拉多', '🐕', '拉布拉多', 'typing', 'focus300', '打字練習累積 60 分鐘（電腦版專注讀書 300 分鐘也可以）', 60],   // v3.9.0：網頁版沒有專注計時
     ['c3d:小熊可可.json', '🧸', '小熊可可', 'homework', 'streak7', '連續學習 7 天', 7],
@@ -624,7 +624,7 @@
       // v3.9.0：網頁版沒有算術和專注計時，改用打字練習（從電腦版搬來的算術、專注紀錄也照樣算）
       case 'math150': {
         const r = typingTotals().rounds;
-        return (t.math_correct || 0) >= 150 ? [30, 30] : [Math.min(30, Math.max(r, Math.floor((t.math_correct || 0) / 5))), 30];
+        return (t.math_correct || 0) >= 150 ? [30, 30] : [Math.min(30, Math.max(r, Math.floor((t.math_correct || 0) / 5))), 30];   // 心算每 5 題算 1 回
       }
       case 'hw15': return [Math.min(15, t.hw_done || 0), 15];
       case 'focus300': {
@@ -1139,7 +1139,8 @@
     const pi = window.PuppyInteractive;
     if (!pi || !pi.setPeek) return;
     const want = (!!currentQuiz && activeTab === 'english') ||
-      (activeTab === 'typing' && !!window.PuppyTyping && window.PuppyTyping.isPlaying());
+      (activeTab === 'typing' && !!window.PuppyTyping && window.PuppyTyping.isPlaying()) ||
+      (activeTab === 'math' && !!window.PuppyMath && window.PuppyMath.isPlaying());
     if (want && !userPeek && !autoPeek) {
       pi.setPeek(true);
       autoPeek = true;
@@ -2361,9 +2362,10 @@
   function switchTab(tab) {
     // v3.7.6：打字測驗模式中（含測驗結束等老師解除），不能切到別的分頁
     if (tab !== 'typing' && window.PuppyTyping && window.PuppyTyping.isExam && window.PuppyTyping.isExam()) tab = 'typing';
-    activeTab = tab;
+    // v3.10.0：先記下原本在哪一頁，離開打字頁時才會正確收起（原本先改 activeTab，這行永遠不會成立）
     if (window.PuppyTyping && activeTab === 'typing' && tab !== 'typing') window.PuppyTyping.hide();
-    ['english', 'checkin', 'typing', 'dex', 'transfer'].forEach(t => {
+    activeTab = tab;
+    ['english', 'checkin', 'typing', 'math', 'dex', 'transfer'].forEach(t => {
       const pane = document.getElementById('tab-' + t);
       if (pane) pane.style.display = t === tab ? 'block' : 'none';
     });
@@ -2375,6 +2377,7 @@
     if (tab === 'dex') renderDexTab();
     if (tab === 'transfer') renderTransferTab();
     if (tab === 'typing' && window.PuppyTyping) window.PuppyTyping.show();
+    if (tab === 'math' && window.PuppyMath) window.PuppyMath.show();
     if (tab !== 'english') syncFocusMode();
   }
 
@@ -2467,6 +2470,16 @@
         if (!announceBond(res, name)) petSay(`🦴 謝謝你認真練習打字！${name} 吃到骨頭餅乾了，好好吃～（今天 ${todayN}／3）`, 'happy');
       },
       focus: () => syncFocusMode()
+    });
+  }
+  // v3.10.0：🧮 心算挑戰
+  if (window.PuppyMath) {
+    window.PuppyMath.mount(document.getElementById('tab-math'), {
+      getState: () => state,
+      save: () => saveState(),
+      award: (xp, stars, subj, text) => award(xp, stars, subj, text),
+      focus: () => syncFocusMode(),
+      mathCorrect: n => { state.totals.math_correct = (state.totals.math_correct || 0) + Math.max(0, n || 0); }
     });
   }
   updateTopBar();
@@ -2835,6 +2848,18 @@
       ok(restoreDaily(todayStr(-2)) === false && listDailyBackups().every(b => b.day !== todayStr(-2)), '壞掉或被改過的備份不能還原');
       dailyKeys().forEach(k => localStorage.removeItem(k));
       try { localStorage.removeItem(STORAGE_KEY + '.before_restore'); } catch (e) { /* 忽略 */ }
+      // v3.10.0：心算挑戰
+      if (window.PuppyMath) {
+        const MT = window.PuppyMath._t, MC = window.PuppyMath.COURSES;
+        let bad = '';
+        MC.forEach(c => { for (let i = 0; i < 40 && !bad; i++) { const q = c.gen(); if (!q || !q.q || !q.a || !q.hint || MT.normAns(q.a) !== q.a) bad = c.id; } });
+        ok(MC.length >= 50 && !bad, '心算課程 ' + MC.length + ' 門，每門課都出得了題（有答案、有提示）' + (bad ? '：' + bad + ' 有問題' : ''));
+        ok(MT.sameAns('1/2', '6/12') && MT.sameAns('2.50', '2.5') && !MT.sameAns('0.5', '1/2') && !MT.sameAns('8', '7'), '心算答案：數值一樣就算對（分數題要打分數）');
+        const mc = MT.data(); mc.prog = {}; mc.days = {};
+        mc.prog.u13 = 3;                 // 精熟 5 年級的課
+        ok(MT.tooEasy(MT.BY_ID.a1) && MT.tooEasy(MT.BY_ID.d1) && !MT.tooEasy(MT.BY_ID.x3) && !MT.tooEasy(MT.BY_ID.v2), '精熟 5 年級的課後，1～3 年級的課算「太簡單」（重複練習不加經驗值），4 年級以上不算');
+        mc.prog = {}; mc.days = {}; state.totals.math_correct = 0;
+      }
       // v3.9.4：不適合國小的字已從詞庫拿掉
       { const ws = new Set(((window.VOCAB_CEEC && window.VOCAB_CEEC.words) || []).map(w => String(w.s || '').toLowerCase()));
         ok(ws.size > 5900 && !ws.has('gay') && !ws.has('sex') && !ws.has('naked') && ws.has('goose') && ws.has('apple'), '詞庫拿掉不適合國小的字（gay、sex、naked…），一般字還在');
