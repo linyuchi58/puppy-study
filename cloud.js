@@ -257,7 +257,8 @@
     if (meta.dirty) {
       setStatus('⏳ 先把最新進度存到雲端…');
       await push(false);
-      if (meta && meta.dirty && !confirm('最新的進度還沒存到雲端（可能沒有網路）。\n\n確定要登出嗎？還沒存上去的部分會只留在這台裝置。')) return;
+      // 沒存上去時不清掉，避免進度不見（對學生最有利）
+      if (meta && meta.dirty && !confirm('最新的進度還沒存到雲端（可能沒有網路）。\n\n建議先不要登出，等有網路再按一次「登出」。\n\n一定要現在登出嗎？還沒存上去的進度會留在這台裝置。')) return;
       if (meta && meta.dirty) clearLocal = false;
     }
     const m = meta;
@@ -302,16 +303,19 @@
           <div style="display:flex;gap:10px;flex-wrap:wrap;">
             <button class="btn btn-green" id="cloudSyncNow">🔄 立刻同步</button>
             <button class="btn btn-soft" id="cloudLogout">👋 登出</button>
-            <button class="btn btn-soft" id="cloudLogoutClear">👋 登出並清掉這台的進度（共用電腦用）</button>
           </div>
+          <p class="section-sub" style="margin-top:8px;font-size:.85rem;">登出後，這台裝置會回到你登入前的樣子；你的進度留在雲端，下次輸入同步碼就拿回來。</p>
           <p class="section-sub" style="margin-top:12px;font-size:.85rem;">
             進度存在老師的 Google 試算表，只有帳號編號、信箱和學習進度，不存姓名、班級、座號。
             <a href="#" id="cloudDelete" style="color:#c0392b;">刪除我的雲端資料</a>
           </p>
         </div>`;
       box.querySelector('#cloudSyncNow').onclick = async () => { setStatus('⏳ 同步中…'); if (meta.dirty) await push(false); else await pull(); };
-      box.querySelector('#cloudLogout').onclick = () => logout(meta && meta.shared);
-      box.querySelector('#cloudLogoutClear').onclick = () => logout(true);
+      // v3.10.2：只有一個登出鈕，一律清掉這台裝置上這個帳號的進度（老師 11-24 決定），進度在雲端
+      box.querySelector('#cloudLogout').onclick = () => {
+        if (meta && meta.sync && !confirm('確定要登出嗎？\n\n你的同步碼是：' + meta.sync + '\n（信箱裡的信也有）下次輸入同步碼，就能拿回進度。')) return;
+        logout(true);
+      };
       box.querySelector('#cloudDelete').onclick = ev => { ev.preventDefault(); deleteCloud(); };
     } else {
       box.innerHTML = `
