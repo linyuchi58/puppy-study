@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.10.2';
-  const APP_BUILD = '20261124-7';
+  const APP_VERSION = 'v3.11.0';
+  const APP_BUILD = '20261124-8';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
@@ -195,7 +195,8 @@
         bond: { 'dog:威爾斯柯基': 0 },
         acc_seen: {}
       },
-      parent: { key: '', dev: '', paired: '', stamps: {}, tries: {} }
+      parent: { key: '', dev: '', paired: '', stamps: {}, tries: {} },
+      tstamp: { name: '', tcode: '', key: '', fp: '', dev: '', joined: '', invalid: false, checked: '', stamps: {}, tries: {}, pending: null }
     };
   }
 
@@ -291,6 +292,12 @@
     if (!base.parent || typeof base.parent !== 'object' || Array.isArray(base.parent)) base.parent = {};
     ['key', 'dev', 'paired'].forEach(k => { if (typeof base.parent[k] !== 'string') base.parent[k] = ''; });
     ['stamps', 'tries'].forEach(k => { if (!base.parent[k] || typeof base.parent[k] !== 'object') base.parent[k] = {}; });
+    // v3.11.0：老師蓋章
+    if (!base.tstamp || typeof base.tstamp !== 'object' || Array.isArray(base.tstamp)) base.tstamp = {};
+    ['name', 'tcode', 'key', 'fp', 'dev', 'joined', 'checked'].forEach(k => { if (typeof base.tstamp[k] !== 'string') base.tstamp[k] = ''; });
+    ['stamps', 'tries'].forEach(k => { if (!base.tstamp[k] || typeof base.tstamp[k] !== 'object' || Array.isArray(base.tstamp[k])) base.tstamp[k] = {}; });
+    base.tstamp.invalid = !!base.tstamp.invalid;
+    if (!base.tstamp.pending || typeof base.tstamp.pending !== 'object') base.tstamp.pending = null;
     if (!Array.isArray(base.custom_habits)) base.custom_habits = [];
     if (!base.checkins || typeof base.checkins !== 'object') base.checkins = {};
     if (!base.totals || typeof base.totals !== 'object') base.totals = {};
@@ -1802,6 +1809,164 @@
     });
   }
 
+  // ════════════════════════════════════════════════════════════════════
+  //  v3.11.0 老師蓋章：老師用手機掃學生的 QR，給 6 位數（藏著 +1～+10⭐），學生打進來
+  //  加入老師要連網（雲端確認老師在「老師名單」上）；之後每天蓋章不用網路。算法和 teacher_stamp.js 一樣。
+  // ════════════════════════════════════════════════════════════════════
+  const TSTAMP_XP = 5;
+  const tsEsc = x => String(x).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const TSTAMP_TRIES = 5;
+  const tsFp = key => window.PuppyStamp.code(key, 'tfp');
+  const tsCode = (key, dev, day, nonce, n) => window.PuppyStamp.code(key, ['tstamp', dev, day, nonce, n].join('|'));
+  const tsTag = nonce => '🐶 ' + 'ABCDEFGHJKMNPQRSTUVWXYZ'[parseInt(nonce.slice(0, 2), 16) % 23] + (parseInt(nonce.slice(2, 4), 16) % 9 + 1);
+  const tsDay = () => todayStr().replace(/-/g, '').slice(2);           // yyMMdd
+  const tsCfg = () => (window.PUPPY_CLOUD && window.PUPPY_CLOUD.scriptUrl) || '';
+  let tsMsg = '';
+  async function tsApi(body) {
+    const r = await fetch(tsCfg(), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }
+  function tsJoined() { const t = state.tstamp; return !!(t.key && t.tcode && !t.invalid); }
+  async function tsJoin(code) {
+    const clean = String(code || '').toUpperCase().replace(/[\s\-]/g, '');
+    if (!/^[2-9A-HJKMNP-Z]{6}$/.test(clean)) { tsMsg = '⚠️ 老師代碼是 6 個字（英文字母和數字），請再看一次'; renderCheckinTab(); return false; }
+    tsMsg = '⏳ 跟雲端確認老師代碼…'; renderCheckinTab();
+    let r;
+    try { r = await tsApi({ a: 'tJoin', tcode: clean }); } catch (e) { tsMsg = '📶 加入老師要連上網路，請確認網路後再試一次'; renderCheckinTab(); return false; }
+    if (!r.ok) { tsMsg = r.err === 'busy' ? '⚠️ 雲端有點忙，請過幾分鐘再試' : '⚠️ 找不到這個老師代碼，請再看一次老師給的代碼'; renderCheckinTab(); return false; }
+    adoptTeacher(r);
+    tsMsg = '';
+    petSay(`👍 加入${r.name}了！以後可以請老師蓋章。`, 'happy');
+    renderCheckinTab();
+    return true;
+  }
+  function adoptTeacher(r) {
+    const t = state.tstamp;
+    t.name = String(r.name || '老師'); t.tcode = String(r.tcode); t.key = String(r.key); t.fp = tsFp(t.key);
+    if (!t.dev) t.dev = window.PuppyStamp.randomHex(3);
+    t.joined = todayStr(); t.invalid = false; t.checked = todayStr(); t.pending = null;
+    saveState();
+  }
+  // 一天問一次雲端：老師是不是換了代碼（沒網路就算了，不影響蓋章）
+  async function tsCheck() {
+    const t = state.tstamp;
+    if (!tsCfg() || SELFTEST || !t.tcode || t.invalid || t.checked === todayStr()) return;
+    try {
+      const r = await tsApi({ a: 'tCheck', tcode: t.tcode });
+      if (!r.ok) return;
+      t.checked = todayStr();
+      if (r.valid === false) t.invalid = true;
+      else if (r.name) t.name = r.name;
+      saveState();
+      if (t.invalid && activeTab === 'checkin') renderCheckinTab();
+    } catch (e) { /* 沒網路：下次再查 */ }
+  }
+  function tsRequest() {
+    const t = state.tstamp, day = tsDay();
+    if (!t.pending || t.pending.day !== day) { t.pending = { day, nonce: window.PuppyStamp.randomHex(2) }; saveState(); }
+    const w = (state.typing && state.typing.who) || {};
+    const who = w.g && w.c && w.s ? `${w.g}-${w.c}-${w.s}` : '';
+    return { text: ['PTS1', t.fp, t.dev, day, t.pending.nonce, who].join('.'), tag: tsTag(t.pending.nonce) };
+  }
+  // 學生打 6 位數：試 +1～+10 哪一個對得上
+  function tryTeacherStamp(input) {
+    const t = state.tstamp, td = todayStr(), day = tsDay();
+    if (!tsJoined()) return [false, '還沒有加入老師。'];
+    if (t.stamps[td]) return [false, '今天老師已經蓋過章了，明天再來！'];
+    if ((t.tries[td] || 0) >= TSTAMP_TRIES) return [false, `今天已經試了 ${TSTAMP_TRIES} 次，明天再請老師蓋章。`];
+    const code = String(input || '').replace(/\D/g, '');
+    if (!t.pending || t.pending.day !== day || code.length !== 6) return [false, '請把老師手機上的 6 位數打進來。'];
+    let n = 0;
+    for (let k = 1; k <= 10 && !n; k++) if (tsCode(t.key, t.dev, day, t.pending.nonce, k) === code) n = k;
+    if (!n) {
+      t.tries[td] = (t.tries[td] || 0) + 1;
+      Object.keys(t.tries).sort().slice(0, -7).forEach(k => { delete t.tries[k]; });
+      saveState();
+      return [false, `數字不對喔，請再看一次老師手機上「${tsTag(t.pending.nonce)}」那一行。（今天還可以試 ${TSTAMP_TRIES - t.tries[td]} 次）`];
+    }
+    t.stamps[td] = n;
+    Object.keys(t.stamps).sort().slice(0, -60).forEach(k => { delete t.stamps[k]; });
+    t.pending = null;
+    state.totals.teacher_stamps = (state.totals.teacher_stamps || 0) + 1;
+    award(TSTAMP_XP, n, 'homework', `${t.name || '老師'}蓋章！`);
+    return [true, `👍 ${t.name || '老師'}蓋章了！+${n}⭐、+${TSTAMP_XP} 經驗值`];
+  }
+  function teacherCardHtml() {
+    if (!tsCfg()) return '';
+    const t = state.tstamp, td = todayStr();
+    let body;
+    if (!tsJoined()) {
+      body = `
+        ${t.invalid ? `<p class="stamp-status" style="color:#c0392b;">⚠️ ${tsEsc(t.name || '老師')}換了新的老師代碼，請輸入新的代碼。</p>` : '<p class="section-sub">第一次要輸入老師給的「老師代碼」（6 個字），要連上網路。</p>'}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <input id="tsJoinIn" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="老師代碼，例如 K7Q 2XP"
+            style="flex:1;min-width:180px;font-size:1.2rem;letter-spacing:.1em;padding:8px 12px;border-radius:12px;border:2px solid #d8c8b4;font-family:monospace;text-transform:uppercase;">
+          <button class="btn btn-orange" id="btnTsJoin">加入老師</button>
+        </div>`;
+    } else if (t.stamps[td]) {
+      body = `<p class="stamp-status good">✅ 今天${tsEsc(t.name)}已經蓋章了！+${t.stamps[td]}⭐</p>`;
+    } else {
+      body = `<p class="section-sub">已加入：<b>${tsEsc(t.name)}</b>。老師說可以的時候，按下面的按鈕。</p>
+        <button class="btn btn-orange" id="btnTsAsk">👍 請老師蓋章</button>`;
+    }
+    return `
+      <div class="card-box stamp-card" id="teacherCard">
+        <div class="section-title"><span>👍 老師蓋章（老師給 +1～+10⭐、+${TSTAMP_XP} 經驗值）</span></div>
+        ${body}
+        <div id="tsMsg" class="stamp-msg" role="alert">${tsEsc(tsMsg)}</div>
+        ${tsJoined() ? `<p class="section-sub" style="margin:6px 0 0;font-size:.85rem;">已經蓋了 ${state.totals.teacher_stamps || 0} 次。<a href="#" id="tsRejoin">換老師代碼</a></p>` : ''}
+      </div>`;
+  }
+  function bindTeacherCard() {
+    const j = document.getElementById('btnTsJoin');
+    if (j) {
+      const go = () => tsJoin(document.getElementById('tsJoinIn').value);
+      j.addEventListener('click', go);
+      document.getElementById('tsJoinIn').addEventListener('keydown', ev => { if (ev.key === 'Enter') go(); });
+    }
+    const a = document.getElementById('btnTsAsk');
+    if (a) a.addEventListener('click', openTeacherStampModal);
+    const re = document.getElementById('tsRejoin');
+    if (re) re.addEventListener('click', ev => {
+      ev.preventDefault();
+      if (!confirm('要換成別的老師代碼嗎？（老師換了代碼，或換了老師才需要）')) return;
+      state.tstamp.invalid = true; saveState(); tsMsg = ''; renderCheckinTab();
+    });
+    tsCheck();
+  }
+  function openTeacherStampModal() {
+    const req = tsRequest();
+    const svg = qrSvg(req.text);
+    openModal(`
+      <div class="section-title">
+        <span>👍 請${tsEsc(state.tstamp.name || '老師')}蓋章</span>
+        <button class="btn btn-soft" id="btnCloseModal" style="min-height:36px;padding:4px 12px;" aria-label="關閉">✕</button>
+      </div>
+      <div style="text-align:center;font-size:2rem;font-weight:900;margin:4px 0;">你的號碼牌：${tsEsc(req.tag)}</div>
+      <ol class="stamp-steps">
+        <li>請老師用手機掃這個 QR Code。</li>
+        <li>老師手機上會出現「${tsEsc(req.tag)}」和 6 位數。</li>
+        <li>把那 6 位數打在下面。</li>
+      </ol>
+      <div class="stamp-qr">${svg || '<p>這台裝置畫不出 QR Code，請重新整理頁面再試一次。</p>'}</div>
+      <label class="stamp-label" for="stampCodeInput">老師手機上的 6 位數</label>
+      <input id="stampCodeInput" class="stamp-input" inputmode="numeric" autocomplete="off" maxlength="7" pattern="[0-9 ]*">
+      <div id="stampMsg" class="stamp-msg" role="alert"></div>
+      <button class="btn btn-green" id="btnStampSubmit" style="width:100%;">送出</button>
+    `);
+    const input = document.getElementById('stampCodeInput');
+    const submit = () => {
+      const [ok, why] = tryTeacherStamp(input.value);
+      if (ok) { closeModal(); petSay(why, 'happy'); renderCheckinTab(); }
+      else { document.getElementById('stampMsg').textContent = why; input.value = ''; }
+    };
+    document.getElementById('btnCloseModal').addEventListener('click', () => { closeModal(); renderCheckinTab(); });
+    document.getElementById('btnStampSubmit').addEventListener('click', submit);
+    input.addEventListener('keydown', ev => { if (ev.key === 'Enter') submit(); });
+    try { input.focus(); } catch (e) { /* 忽略 */ }
+  }
+
   function renderCheckinTab() {
     const wrap = document.getElementById('tab-checkin');
     const td = todayStr();
@@ -1845,8 +2010,10 @@
           ${customN ? '<button class="btn btn-soft" id="btnDelHabit">🗑 刪掉自己加的項目</button>' : ''}
         </div>
       </div>
+      ${teacherCardHtml()}
       ${parentCardHtml()}
     `;
+    bindTeacherCard();
     bindParentCard();
 
     wrap.querySelectorAll('.checkin-item').forEach(el => {
@@ -2655,6 +2822,32 @@
       ok(tryStamp(sc)[0] === true && state.stars === sBefore + STAMP_STARS && state.totals.parent_stamps === 1, '蓋章碼正確：加碼 +3⭐');
       ok(stampState()[0] === 'done' && tryStamp(sc)[0] === false, '一天只能蓋一次章');
       PARENT_PAGE_URL = '';
+      // v3.11.0 老師蓋章（固定數字和 teacher.html 的自動測試一樣）
+      {
+        const K = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+        ok(tsFp(K) === '401874' && tsCode(K, 'abcdef', '261124', '1a2b', 3) === '993742' && tsCode(K, 'abcdef', '261124', '1a2b', 10) === '829421', '老師蓋章碼算法和老師端相同');
+        const t = state.tstamp;
+        ok(tryTeacherStamp('123456')[0] === false, '還沒加入老師：不能蓋章');
+        adoptTeacher({ name: '林老師', tcode: 'ABCDEF', key: K });
+        ok(tsJoined() && t.fp === '401874' && /^[0-9a-f]{6}$/.test(t.dev), '加入老師：記住稱呼、指紋、這台裝置的編號');
+        const hadTyping = !!state.typing; if (!hadTyping) state.typing = {};
+        state.typing.who = { g: 4, c: 3, s: 12 };
+        const rq = tsRequest();
+        ok(rq.text === ['PTS1', '401874', t.dev, tsDay(), t.pending.nonce, '4-3-12'].join('.') && /^🐶 [A-Z][1-9]$/.test(rq.tag), '請老師蓋章的 QR 內容正確（有座號、號碼牌）');
+        const s0 = state.stars;
+        const good = tsCode(K, t.dev, tsDay(), t.pending.nonce, 7);
+        const bad = good === '000000' ? '111111' : '000000';
+        ok(tryTeacherStamp(bad)[0] === false && t.tries[todayStr()] === 1, '6 位數打錯：不給，記一次');
+        ok(tryTeacherStamp(good.slice(0, 3) + ' ' + good.slice(3))[0] === true && state.stars === s0 + 7 && t.stamps[todayStr()] === 7 && state.totals.teacher_stamps === 1, '老師給 +7：打對 6 位數就 +7⭐（中間有空白也可以）');
+        ok(tryTeacherStamp(good)[0] === false, '老師蓋章一天一次');
+        t.stamps = {}; t.tries = {};
+        tsRequest();
+        for (let i = 0; i < TSTAMP_TRIES; i++) tryTeacherStamp(bad);
+        ok(/明天/.test(tryTeacherStamp(tsCode(K, t.dev, tsDay(), t.pending.nonce, 2))[1]), `一天最多試 ${TSTAMP_TRIES} 次（防亂猜）`);
+        t.invalid = true;
+        ok(!tsJoined(), '老師換了代碼（雲端說無效）：要重新加入');
+        state.tstamp = normalizeData(defaultData()).tstamp; state.totals.teacher_stamps = 0; if (hadTyping) state.typing.who = { g: 0, c: 0, s: 0 }; else delete state.typing;
+      }
       // 英打練習（v3.5.0）
       const T = window.PuppyTyping && window.PuppyTyping._t;
       ok(!!T, '英打練習有載入');

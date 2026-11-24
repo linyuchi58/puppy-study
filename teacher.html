@@ -65,16 +65,30 @@
     .stat { background: var(--gold-l); border-radius: 12px; padding: 6px 12px; font-weight: 800; }
     .tablewrap { max-height: 60vh; overflow: auto; }
     [hidden] { display: none !important; }
+    /* v3.11.0：老師蓋章 */
+    .ts-stars { display: flex; flex-wrap: wrap; gap: 4px; }
+    .ts-stars button { min-width: 52px; padding: 8px 6px; font-weight: 900; }
+    .ts-stars button.on { background: #f0a800; color: #fff; border-color: #f0a800; }
+    .ts-list { display: grid; gap: 6px; margin: 6px 0; }
+    .ts-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 8px 12px; border-radius: 12px; background: #fff7d6; border: 2px solid #f0d27a; }
+    .ts-row.bad { background: #ffeaea; border-color: #f0a0a0; }
+    .ts-tag { font-weight: 900; font-size: 1.3rem; }
+    .ts-who { color: var(--muted); font-weight: 700; }
+    .ts-code { font-size: 2rem; font-weight: 900; letter-spacing: .08em; font-variant-numeric: tabular-nums; color: #1f5f99; }
+    .ts-n { font-weight: 900; color: #b37400; }
+    .ts-bad { color: var(--red); font-weight: 800; }
+    #stampBar { background: #fffbea; border: 2px dashed #f0b400; border-radius: 14px; padding: 8px 12px; margin: 8px 0; }
     @media print { .noprint { display: none !important; } .tablewrap { max-height: none; } }
   </style>
 </head>
 <body>
   <main>
-    <h1>🐶 學習小伙伴｜教師頁（打字測驗）<small id="tVer" style="font-size:.7rem;color:var(--muted);font-weight:700;"></small></h1>
+    <h1>🐶 學習小伙伴｜教師頁（打字測驗、老師蓋章）<small id="tVer" style="font-size:.7rem;color:var(--muted);font-weight:700;"></small></h1>
     <p class="note noprint" style="margin-top:-6px;">測驗前請學生先按一次 <b>F5</b> 重新整理；學生準備畫面最下面的版本，要和這裡的建置編號一樣。</p>
     <div class="tabs noprint">
       <button id="tabMake" class="on">① 產生測驗碼</button>
       <button id="tabCollect">② 收成績（直接掃描，不用測驗碼）</button>
+      <button id="tabStamp">③ 👍 老師蓋章</button>
     </div>
 
     <section id="paneMake">
@@ -115,6 +129,8 @@
       </div>
     </section>
 
+    <section id="paneStamp" hidden></section>
+
     <section id="paneCollect" hidden>
       <div class="card noprint">
         <h2>掃描學生畫面上的 QR Code</h2>
@@ -131,6 +147,7 @@
         <div class="scan-wrap" id="scanWrap" hidden><div class="scan-view" id="scanView"><video id="video" playsinline muted></video></div><div class="scan-count" id="scanCount"></div></div>
         <canvas id="canvas" hidden></canvas>
         <div class="flash" id="flash"></div>
+        <div id="stampBar" hidden></div>
         <div class="live" id="live"></div>
         <div class="diag" id="diag"></div>
         <details>
@@ -174,10 +191,12 @@
     </section>
   </main>
 
-  <script src="./stamp.js?v=20261124-7"></script>
-  <script src="./typing.js?v=20261124-7"></script>
-  <script src="./jsqr.js?v=20261124-7"></script>
-  <script src="./zxing_reader.js?v=20261124-7"></script>
+  <script src="./stamp.js?v=20261124-8"></script>
+  <script src="./cloud_config.js?v=20261124-8"></script>
+  <script src="./teacher_stamp.js?v=20261124-8"></script>
+  <script src="./typing.js?v=20261124-8"></script>
+  <script src="./jsqr.js?v=20261124-8"></script>
+  <script src="./zxing_reader.js?v=20261124-8"></script>
   <script>
   (function () {
     'use strict';
@@ -202,14 +221,20 @@
     function showTab(t) {
       $('paneMake').hidden = t !== 'make';
       $('paneCollect').hidden = t !== 'collect';
+      $('paneStamp').hidden = t !== 'stamp';
       $('tabMake').classList.toggle('on', t === 'make');
       $('tabCollect').classList.toggle('on', t === 'collect');
+      $('tabStamp').classList.toggle('on', t === 'stamp');
+      if (window.PuppyTeacherStamp) window.PuppyTeacherStamp.render();
       if (t !== 'collect') stopCam();
       if (t === 'collect') renderTable();
       try { localStorage.setItem(STORE + '.tab', t); } catch (e) { /* 忽略 */ }
     }
     $('tabMake').onclick = () => showTab('make');
     $('tabCollect').onclick = () => showTab('collect');
+    $('tabStamp').onclick = () => showTab('stamp');
+    // v3.11.0：老師蓋章頁的「開始掃描」用收成績頁同一個相機
+    window.PuppyTeacherHooks = { scan() { showTab('collect'); unlockSound(); startCam().then(() => { try { $('scanWrap').scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) { /* 忽略 */ } }); } };
 
     // ── ① 產生測驗碼 ──
     function fillScope() {
@@ -446,7 +471,7 @@
     try {
       if (window.ZXingWASM && window.WebAssembly) {
         window.ZXingWASM.prepareZXingModule({
-          overrides: { locateFile: (path, prefix) => (path.endsWith('.wasm') ? './zxing_reader.wasm?v=20261124-7' : prefix + path) },
+          overrides: { locateFile: (path, prefix) => (path.endsWith('.wasm') ? './zxing_reader.wasm?v=20261124-8' : prefix + path) },
           fireImmediately: true
         }).then(() => { zx = window.ZXingWASM; }).catch(() => { zx = null; });
       }
@@ -558,13 +583,21 @@
       const fresh = [...new Set(texts)].filter(t => t && now - (seen.get(t) || 0) > 3000);
       if (!fresh.length) return;
       fresh.forEach(t => seen.set(t, now));
-      const res = fresh.map(t => addPayload(t));
+      // v3.11.0：學生「請老師蓋章」的 QR 交給 teacher_stamp.js（算 6 位數），其他照舊收成績
+      const TS = window.PuppyTeacherStamp;
+      const res = fresh.map(t => {
+        const sr = TS ? TS.scan(t) : null;
+        if (!sr) return addPayload(t);
+        return [sr[0], sr[1], sr[3] === 'new' ? 'stamp' : 'dup', null];
+      });
+      if (res.some(r => r[2] === 'stamp')) ding(true);
       const news = res.filter(r => r[0] && r[2] === 'new');
       const msgs = res.map(r => r[1]);
       const allOk = res.every(r => r[0]);
-      const dupN = res.filter(r => r[0] && r[2] !== 'new').length;
+      const stampN = res.filter(r => r[2] === 'stamp').length;
+      const dupN = res.filter(r => r[0] && r[2] !== 'new' && r[2] !== 'stamp').length;
       const badN = res.filter(r => !r[0]).length;
-      flash(allOk, res.length === 1 ? msgs[0] : [news.length ? `✔ 新收 ${news.length} 筆` : '', dupN ? `收過 ${dupN} 筆` : '', badN ? `⚠ ${badN} 筆讀不懂` : ''].filter(Boolean).join('、'));
+      flash(allOk, res.length === 1 ? msgs[0] : [news.length ? `✔ 新收 ${news.length} 筆` : '', stampN ? `👍 蓋章 ${stampN} 位（6 位數在上面）` : '', dupN ? `收過 ${dupN} 筆` : '', badN ? `⚠ ${badN} 筆有問題` : ''].filter(Boolean).join('、'));
       res.forEach(r => {
         const x = r[3];
         liveList.unshift({ cls: !r[0] ? 'bad' : r[2] === 'new' ? 'new' : 'dup',
@@ -724,7 +757,12 @@
     } catch (e) { /* 忽略 */ }
     try { if (recentCodes().length) showCode(recentCodes()[0]); } catch (e) { /* 忽略 */ }
     // 記住上次停在哪一頁（老師在收成績時重新整理，不會跳回產生測驗碼）
-    try { if (location.hash === '#collect' || localStorage.getItem(STORE + '.tab') === 'collect') showTab('collect'); } catch (e) { /* 忽略 */ }
+    try {
+      const lastTab = localStorage.getItem(STORE + '.tab');
+      if (location.hash === '#collect' || lastTab === 'collect') showTab('collect');
+      else if (location.hash === '#stamp' || lastTab === 'stamp') showTab('stamp');
+    } catch (e) { /* 忽略 */ }
+    try { if (window.PuppyTeacherStamp) window.PuppyTeacherStamp.mount(); } catch (e) { /* 忽略 */ }
     window.PuppyTeacher = { photoFiles, addPayload, rows: () => rows, csvText, makeNew, renderTable, handleFound, jsqrScan, setZoom, engine: () => (zx ? 'zxing' : detector ? 'native' : 'jsqr') };
 
     // ── 自動測試（網址加 ?apptest=1）──
@@ -816,6 +854,23 @@
         const zC = PT._t.qrPayload({ code: '121416', g: 5, c: 4, s: 30, attempt: 1, ok: 120, miss: 8, mash: 0, self: false, when: '202611171354' });
         seen.clear(); handleFound([zC]);
         ok(rows.every(goodRow) && rows.some(r => r.code === '121416' && r.s === 30), '存檔裡有壞掉的資料，也能照常收成績');
+        // v3.11.0：老師蓋章（固定數字和學生端 app.js 的自動測試一樣，兩邊算法要相同）
+        const TS = window.PuppyTeacherStamp, TT = TS && TS._t;
+        if (TT) {
+          const K = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+          ok(TT.fpOf(K) === '401874' && TT.codeOf(K, 'abcdef', '261124', '1a2b', 3) === '993742' && TT.codeOf(K, 'abcdef', '261124', '1a2b', 10) === '829421', '老師蓋章碼算法正確（和學生端相同）');
+          TT.reset(); TT.adopt({ email: 't@x.tw', name: '林老師', tcode: 'ABCDEF', key: K });
+          TT.st.stars = 4;
+          const today = TT.dayStr(), nRows = rows.length;
+          seen.clear(); handleFound(['PTS1.401874.abcdef.' + today + '.1a2b.4-3-12']);
+          const lg = TT.st.log[TT.st.log.length - 1];
+          ok(lg && lg.n === 4 && lg.code === TT.codeOf(K, 'abcdef', today, '1a2b', 4) && lg.who === '4 年 3 班 12 號' && rows.length === nRows, '掃到學生蓋章 QR：算出 6 位數（+4⭐），顯示座號，不會收進成績表');
+          ok(TS.scan('PTS1.401874.abcdef.' + today + '.1a2b.')[3] === 'dup', '同一個 QR 再掃：說掃過了，數字一樣');
+          ok(TS.scan('PTS1.123456.abcdef.' + today + '.9c9c.')[0] === false && /不是你現在的老師代碼/.test(TT.st.log[TT.st.log.length - 1].bad), '學生加入的是別的（或舊的）老師代碼：紅色提醒，不給數字');
+          ok(TS.scan('PTS1.401874.abcdef.200101.7d7d.')[0] === false, '學生裝置日期不是今天：不給數字');
+          ok(TS.scan('PZT1|abc') === null, '成績 QR 不會被當成蓋章 QR');
+          TT.reset();
+        }
         try { localStorage.removeItem(STORE + '.recent'); localStorage.removeItem(STORE + '.tab'); } catch (e) { /* 忽略 */ }
       } catch (e) {
         fails.push('發生例外：' + e.message);
