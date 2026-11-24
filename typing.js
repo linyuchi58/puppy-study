@@ -472,7 +472,9 @@
       if (!document.fullscreenElement && el.requestFullscreen) {
         el.requestFullscreen().then(() => {
           // Chrome／Edge 全螢幕時可以攔下 Win 鍵、Esc 等系統鍵（作業系統允許的才行）
-          try { if (navigator.keyboard && navigator.keyboard.lock) navigator.keyboard.lock().catch(() => {}); } catch (e) { /* 忽略 */ }
+          // v3.9.3：只攔 Win、Esc、Tab、Alt、F1～F12；Ctrl、Shift、空白鍵不攔，學生才能用 Ctrl＋Shift、Shift 換輸入法
+          const LOCK_KEYS = ['MetaLeft', 'MetaRight', 'Escape', 'Tab', 'AltLeft', 'AltRight', 'ContextMenu'].concat(Array.from({ length: 12 }, (_, i) => 'F' + (i + 1)));
+          try { if (navigator.keyboard && navigator.keyboard.lock) navigator.keyboard.lock(LOCK_KEYS).catch(() => {}); } catch (e) { /* 忽略 */ }
         }).catch(() => {});
       }
     } catch (e) { /* 忽略 */ }
@@ -549,6 +551,46 @@
 
   // ── 中文打字：輸入框 ──────────────────────────────────────
   let composing = false;
+  // v3.9.3：網頁讀不到電腦現在用哪個輸入法，只能從學生打出來的字「猜」
+  let imeGuess = '';          // '' 還不知道／zh 中文注音／en 英文／full 全形英數／halfp 半形符號
+  let compSince = 0, compData = '', bannerKind = '';
+  const IME_TEXT = {
+    '': ['ime-unknown', '⚪ 輸入法：還不知道，先打一個字看看'],
+    zh: ['ime-ok', '🟢 輸入法：中文（注音）'],
+    en: ['ime-bad', '🔴 輸入法：英文 → 請按一下 Shift 換回中文'],
+    full: ['ime-bad', '🟠 輸入法：全形英數 → 請按一下 Shift 換回中文'],
+    halfp: ['ime-warn', '🟠 打出半形符號了 → 標點要用全形（看提示卡）']
+  };
+  function guessFrom(text) {
+    const t = String(text || '');
+    if (!t) return '';
+    if (/[A-Za-z]/.test(t)) return 'en';
+    if (/[Ａ-Ｚａ-ｚ]/.test(t)) return 'full';
+    if (/[\u3400-\u9fff\u3105-\u3129]/.test(t)) return 'zh';
+    if (HALF_PUNCT.test(t)) return 'halfp';
+    return '';
+  }
+  function setIme(g) {
+    if (g === undefined || g === imeGuess) return;
+    imeGuess = g;
+    if (!pane) return;
+    pane.querySelectorAll('.ty-ime-chip').forEach(el => { const [cls, txt] = IME_TEXT[imeGuess] || IME_TEXT['']; el.className = 'ty-ime-chip ' + cls; el.textContent = txt; });
+  }
+  function imeChipHtml() { const [cls, txt] = IME_TEXT[imeGuess] || IME_TEXT['']; return `<span class="ty-ime-chip ${cls}">${txt}</span>`; }
+  const IME_KEYS_HTML = '<div class="ty-ime-keys">換輸入法：<kbd>Shift</kbd> 中／英　<kbd>Shift</kbd>＋<kbd>Space</kbd> 全形／半形　<kbd>Ctrl</kbd>＋<kbd>Shift</kbd> 換別的輸入法（換到「微軟注音」）</div>';
+  // 微軟注音打完沒按 Enter：字還在輸入法的框框裡，沒有送進來
+  function checkUnsent() {
+    if (mode !== 'cn' || !run || view !== 'play') return;
+    const now = Date.now();
+    const stuck = composing && compSince && (now - compSince > 8000 || compData.length >= 10);
+    if (stuck && bannerKind !== 'enter') {
+      bannerKind = 'enter';
+      banner = '⚠️ 字還沒送出！打完要按 Enter，字才會跑進框框裡、才會算分！';
+      renderBanner();
+    } else if (!stuck && bannerKind === 'enter') {
+      bannerKind = ''; banner = ''; renderBanner();
+    }
+  }
   function cnEvaluate(value) {
     if (!run || mode !== 'cn') return null;
     const now = Date.now();
@@ -558,6 +600,7 @@
     if (!run.started) { run.started = now; run.last = now; }
     run.activeMs += Math.min(GAP_CAP_MS, now - run.last);
     run.last = now;
+    setIme(guessFrom(fresh) || imeGuess);
     let nb = '';
     if (/[A-Za-z]/.test(fresh)) nb = '⚠ 打出英文字母了：請按一下 Shift，切換回中文（注音）。';
     else if (HALF_PUNCT.test(fresh)) nb = '⚠ 這是半形符號，算打錯喔！請改用全形符號（例如 ，。？），看右邊的提示卡。';
@@ -597,8 +640,9 @@
   function bindCnInput() {
     const box = pane.querySelector('#tyInput');
     if (!box) return;
-    box.addEventListener('compositionstart', () => { composing = true; });
-    box.addEventListener('compositionend', () => { composing = false; cnEvaluate(box.value); });
+    box.addEventListener('compositionstart', () => { composing = true; compSince = Date.now(); compData = ''; setIme('zh'); });
+    box.addEventListener('compositionupdate', ev => { compData = String(ev.data || ''); });
+    box.addEventListener('compositionend', () => { composing = false; compSince = 0; compData = ''; if (bannerKind === 'enter') { bannerKind = ''; banner = ''; renderBanner(); } cnEvaluate(box.value); });
     box.addEventListener('input', ev => {
       if (ev.isComposing || composing) return;
       if (ev.inputType && ev.inputType.indexOf('delete') === 0 && run) run.deletes = (run.deletes || 0) + 1;
@@ -689,6 +733,8 @@
     }
     if (view !== 'play' || !run) return 'ignored';
     if (mode === 'cn') return 'ignored';
+    // v3.9.3：Ctrl＋Shift、Ctrl＋空白鍵是換輸入法的鍵，放行（不擋、不算對錯）
+    if (ev.ctrlKey && !ev.altKey && !ev.metaKey && (ev.key === 'Shift' || ev.key === 'Control' || ev.code === 'Space' || ev.key === ' ')) return 'ignored';
     // Ctrl／Alt／Win 組合鍵：擋掉瀏覽器的快速鍵（例如 Ctrl＋W 關分頁），不算對錯
     if (ev.ctrlKey || ev.altKey || ev.metaKey || /^(Meta|OS|Alt|Control|ContextMenu)/.test(ev.code || '')) {
       if (ev.preventDefault) ev.preventDefault();
@@ -818,6 +864,12 @@
 
   function finishTest() {
     if (!run || !run.test) return;
+    // v3.9.3：時間到時還沒按 Enter 的字（在輸入法框框裡），對學生有利：一起算
+    if (mode === 'cn' && pane) {
+      const box = pane.querySelector('#tyInput');
+      if (box && box.value && box.value !== run.typed) { try { cnEvaluate(box.value); } catch (e) { /* 忽略 */ } }
+      composing = false; compSince = 0; compData = ''; bannerKind = '';
+    }
     const test = run.test;
     const info = test.info;
     const d = saveKeyStats();
@@ -1073,6 +1125,11 @@
         <p class="section-sub">${info.mode === 'cn'
           ? '請先把輸入法切到<b>微軟注音（中文）</b>。打錯可以繼續往下打，最後一起算；標點要用全形，不能貼上。'
           : '題目不需要按空白鍵；每 5 個字之間的間隔只是方便看。打錯不會往前跳。'}<br>得分＝打對的字數 × 正確率。</p>
+        ${info.mode === 'cn' ? `<div class="ty-ime-try">
+          <b>✍️ 開始前，先在這裡試打一個字，確認輸入法是「微軟注音」</b>
+          <div class="ty-ime-try-row"><input id="tyTry" autocomplete="off" spellcheck="false" placeholder="試打：例如「我」">${imeChipHtml()}</div>
+          ${IME_KEYS_HTML}
+        </div>` : ''}
         ${self ? '' : `<div class="ty-wait-teacher" role="alert">✋ 準備好了！等候老師說開始之後，才能按鈕開始挑戰！</div>`}
         <button class="ty-start-big${self ? ' self' : ''}" id="tyStart">${self ? '▶ 準備好了！開始挑戰' : '🏁 老師說開始了！開始挑戰'}<small>（也可以按 Enter）</small></button>
         <button class="btn btn-soft" id="tyBack" style="margin-top:10px;">← 取消</button>
@@ -1115,6 +1172,7 @@
         <div class="ty-progress"><div id="tyBar" style="width:0%"></div></div>
         <div id="tyFingerName" class="ty-fname"></div>
         <div id="tyCountdown" class="ty-countdown" hidden></div>
+        ${mode === 'cn' ? `<div class="ty-ime-row">${imeChipHtml()}${IME_KEYS_HTML}</div>` : ''}
         ${mode === 'cn' ? `<div class="ty-cn-row">
           <textarea id="tyInput" class="ty-input" rows="3" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="在這裡打字（微軟注音）" ${run.test ? 'disabled' : ''}></textarea>
           ${punctCardHtml()}</div>` : keyboardHtml() + (zh ? '' : handsHtml())}
@@ -1214,6 +1272,14 @@
       if (window.confirm('⚠️ 老師已經收完你的成績，而且同意你離開了嗎？\n\n還沒等老師同意就離開，老師可能收不到你的成績。\n（離開後，在打字練習頁可以按「上一次測驗成績 QR」再叫出來）\n\n確定要離開嗎？')) releaseLock();
     });
     on('tyLastTest', showLastTest);
+    const tryBox = pane.querySelector('#tyTry');
+    if (tryBox) {
+      let tc = false;
+      tryBox.addEventListener('compositionstart', () => { tc = true; setIme('zh'); });
+      tryBox.addEventListener('compositionend', () => { tc = false; setIme(guessFrom(tryBox.value.slice(-1)) || 'zh'); });
+      tryBox.addEventListener('input', ev => { if (!ev.isComposing && !tc) setIme(guessFrom(tryBox.value.slice(-1)) || imeGuess); });
+      tryBox.addEventListener('keydown', ev => { if (ev.key === 'Enter' && !ev.isComposing && ev.keyCode !== 229) ev.preventDefault(); ev.stopPropagation(); });
+    }
     const unl = pane.querySelector('#tyUnlock');
     if (unl) {
       const tryUnlock = () => {
@@ -1305,6 +1371,7 @@
     if (!b) return;
     b.textContent = banner;
     b.hidden = !banner;
+    b.classList.toggle('alert', bannerKind === 'enter');
   }
 
   function renderStatus() {
@@ -1424,6 +1491,7 @@
         ticker = setInterval(() => {
           if (view !== 'play') return;
           renderStatus();
+          checkUnsent();
           if (run && run.test) { renderTimer(); if (run) renderProgress(true); }
         }, 250);
       }
@@ -1440,7 +1508,8 @@
       LETTER_LESSONS, ZH_LESSONS, FINGER_OF, LETTERS_BEFORE, ZH_OF_KEY, KEY_OF_ZH, CODE_KEY, MODES,
       CN_LESSONS, cnText, cnCompare, cnEvaluate, TIMES,
       makeText, makeRun, startLesson, handleKey, starsFor, unlockedIndex, parseCode, makeCode, testText, scoreOf, qrPayload,
-      prepareTest, startTest, finishTest, common, unlockCode, isExam: () => exam, releaseLock, showLastTest, lockExpired, LOCK_MAX_MS,
+      prepareTest, startTest, finishTest, common, unlockCode, isExam: () => exam, releaseLock, showLastTest, lockExpired, LOCK_MAX_MS, guessFrom, setIme, imeGuess: () => imeGuess, checkUnsent, cnEvaluate,
+      _comp: (on, data, since) => { composing = on; compData = data || ''; compSince = since || 0; },
       run: () => run, result: () => lastResult, view: () => view, status, quit, data,
       setRun: patch => Object.assign(run, patch), setMode: m => { mode = m; }
     }

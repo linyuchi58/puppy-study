@@ -702,6 +702,18 @@ body {
 .ty-status.red { background: #e5534b; color: #fff; }
 .ty-banner { background: var(--orange-l); border: 2px solid var(--orange); border-radius: 12px; padding: 8px 12px; font-weight: 800; margin-bottom: 8px; }
 .ty-banner[hidden] { display: none; }
+.ty-banner.alert { background: #ffe1e1; border: 3px solid #d62828; color: #a10000; font-size: 1.25rem; padding: 12px 16px; text-align: center; animation: tyAlertPulse 1s ease-in-out infinite alternate; }
+@keyframes tyAlertPulse { from { box-shadow: 0 0 0 0 rgba(214,40,40,.0); } to { box-shadow: 0 0 0 6px rgba(214,40,40,.25); } }
+.ty-ime-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 6px 0; }
+.ty-ime-chip { display: inline-block; padding: 4px 12px; border-radius: 999px; font-weight: 900; border: 2px solid #d8c8b4; background: #fff; }
+.ty-ime-chip.ime-ok { border-color: #2fa86a; color: #1f7a4c; background: #e9f8ef; }
+.ty-ime-chip.ime-bad { border-color: #d62828; color: #a10000; background: #ffe9e9; }
+.ty-ime-chip.ime-warn { border-color: #f08c00; color: #9a5a00; background: #fff4de; }
+.ty-ime-keys { font-size: .85rem; color: #6b5b4b; }
+.ty-ime-keys kbd { display: inline-block; padding: 0 6px; border: 1px solid #c9b8a2; border-bottom-width: 2px; border-radius: 6px; background: #fff; font-family: inherit; font-size: .8rem; }
+.ty-ime-try { margin: 12px auto; max-width: 560px; padding: 12px 14px; border-radius: 16px; background: #f3fbf6; border: 2px dashed #2fa86a; text-align: left; }
+.ty-ime-try-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 8px 0 6px; }
+.ty-ime-try-row input { flex: 1; min-width: 160px; font-size: 1.3rem; padding: 6px 10px; border-radius: 10px; border: 2px solid #d8c8b4; }
 .ty-text {
   font-family: "Consolas", "Menlo", "Courier New", monospace; font-size: clamp(1.4rem, 3.2vw, 2rem);
   line-height: 1.7; letter-spacing: 0.06em; background: #fff; border: 2px solid var(--line); border-radius: 16px;
