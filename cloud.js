@@ -181,7 +181,7 @@
     return gisReady;
   }
 
-  // ── 三種登入：Google、同步碼、信箱驗證碼 ──
+  // ── 三種登入：Google、同步碼、信箱（v3 起信裡直接寄同步碼）──
   const ERR = {
     bad_token: '⚠️ Google 登入沒有成功，請再試一次',
     bad_sync: '⚠️ 找不到這組同步碼，請再檢查一次（8 個字，像 7KQM-2XPA）',
@@ -189,7 +189,7 @@
     bad_email: '⚠️ 信箱格式不對，請再檢查一次',
     wait: '⏳ 剛剛寄過了，請等一分鐘再按',
     too_many: '⚠️ 這個信箱這一小時寄太多次了，請過一陣子再試',
-    quota: '⚠️ 今天的驗證信已經寄完了，請明天再試（已經有同步碼的人可以直接用同步碼登入）',
+    quota: '⚠️ 今天的信已經寄完了，請明天再試（已經有同步碼的人可以直接用同步碼登入）',
     bad_code: '⚠️ 驗證碼不對，請再看一次信裡的 6 個數字',
     expired: '⚠️ 驗證碼過期或試太多次了，請重新寄一封'
   };
@@ -211,8 +211,10 @@
     let r;
     try { r = await api({ a: 'sendCode', email }); } catch (e) { setStatus('📶 連不上雲端，請確認網路後再試一次'); return false; }
     if (!r.ok) { setStatus(ERR[r.err] || '⚠️ 雲端暫時不能用，請稍後再試'); return false; }
+    // v3.10.1：新版雲端（v3）把同步碼直接寄到信裡；舊版雲端還是寄 6 位數驗證碼
+    if (r.mode === 'sync') { setStatus('📧 同步碼寄出了！打開信，把同步碼填到上面「🔑 我已經有同步碼」'); return 'sync'; }
     setStatus('📧 驗證信寄出了！收件匣沒有就看「垃圾郵件」');
-    return true;
+    return 'code';
   }
 
   async function afterLogin(r, shared) {
@@ -324,7 +326,7 @@
             <input type="checkbox" id="cloudShared" style="width:22px;height:22px;"> 這是共用電腦（電腦教室），關掉網頁就自動登出
           </label>
           <div style="display:grid;gap:12px;">
-            <div style="background:#fffaf2;border:2px solid #e6d9c8;border-radius:16px;padding:12px 14px;">
+            <div id="cloudSyncBox" style="background:#fffaf2;border:2px solid #e6d9c8;border-radius:16px;padding:12px 14px;">
               <div style="font-weight:900;margin-bottom:6px;">🔑 我已經有同步碼</div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;">
                 <input id="cloudSyncIn" maxlength="12" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="例如 7KQM-2XPA"
@@ -333,21 +335,22 @@
               </div>
             </div>
             <div style="background:#fffaf2;border:2px solid #e6d9c8;border-radius:16px;padding:12px 14px;">
-              <div style="font-weight:900;margin-bottom:6px;">📧 第一次使用，或忘記同步碼：用信箱</div>
+              <div style="font-weight:900;margin-bottom:6px;">📧 第一次使用，或忘記同步碼：把同步碼寄到信箱</div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;">
                 <input id="cloudMailIn" type="email" autocomplete="email" placeholder="你的信箱（學校信箱也可以）"
                   style="flex:1;min-width:200px;font-size:1.05rem;padding:8px 12px;border-radius:12px;border:2px solid #d8c8b4;">
-                <button class="btn btn-soft" id="cloudMailGo">寄驗證碼</button>
+                <button class="btn btn-soft" id="cloudMailGo">寄同步碼</button>
               </div>
-              <div class="section-sub" style="margin:6px 0 0;font-size:.85rem;">⚠️ 驗證信常常會被放進「垃圾郵件」，收件匣沒看到請去那裡找。</div>
+              <div class="section-sub" style="margin:6px 0 0;font-size:.85rem;">⚠️ 信常常會被放進「垃圾郵件」，收件匣沒看到請去那裡找。收到的信請留著，忘記同步碼時回來找。</div>
               <div id="cloudSpamTip" style="display:none;margin-top:10px;background:#fff1d6;border:3px solid #f08c00;border-radius:16px;padding:12px 14px;">
                 <div style="font-weight:900;font-size:1.15rem;color:#b35900;">📬 信寄出了！收件匣找不到，請一定要看「垃圾郵件」！</div>
                 <div style="margin-top:6px;line-height:1.7;">
                   ・寄件人：<b>汪汪小精靈 學習小伙伴</b><br>
-                  ・主旨：<b>【汪汪小精靈 學習小伙伴】你的驗證碼：六個數字</b><br>
+                  ・主旨：<b id="cloudMailSubj">【汪汪小精靈 學習小伙伴】你的同步碼：XXXX-XXXX</b><br>
                   ・Gmail：左邊選單按「<b>更多</b>」→「<b>垃圾郵件</b>」。找到後按「<b>回報為非垃圾郵件</b>」，下次就會進收件匣。<br>
                   ・信可能要等 1～2 分鐘才會到。
                 </div>
+                <div id="cloudSyncHow" style="margin-top:8px;font-weight:900;font-size:1.05rem;color:#1f7a4c;">👆 收到信後，把信裡的同步碼填到上面「🔑 我已經有同步碼」，按「登入」。<br>⭐ 這封信請留著，不要刪掉；也可以把同步碼抄在聯絡簿。</div>
               </div>
               <div id="cloudCodeRow" style="display:none;gap:8px;flex-wrap:wrap;margin-top:8px;">
                 <input id="cloudCodeIn" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="信裡的 6 個數字"
@@ -367,9 +370,17 @@
         if (!email) { setStatus('請先輸入信箱'); return; }
         const b = q('#cloudMailGo'); b.disabled = true;
         const sent = await sendCode(email);
-        if (sent) { q('#cloudSpamTip').style.display = 'block'; q('#cloudCodeRow').style.display = 'flex'; q('#cloudCodeIn').focus(); }
+        if (sent) q('#cloudSpamTip').style.display = 'block';
+        if (sent === 'sync') {
+          const sb = q('#cloudSyncBox'); sb.style.border = '3px solid #2fa86a'; sb.style.background = '#effaf3';
+          q('#cloudSyncIn').focus();
+        } else if (sent) {   // 舊版雲端：還是輸入 6 位數驗證碼
+          q('#cloudMailSubj').textContent = '【汪汪小精靈 學習小伙伴】你的驗證碼：六個數字';
+          q('#cloudSyncHow').style.display = 'none';
+          q('#cloudCodeRow').style.display = 'flex'; q('#cloudCodeIn').focus();
+        }
         let left = sent ? 60 : 0;
-        const tick = () => { if (!b.isConnected) return; if (left > 0) { b.textContent = `再寄一次（${left}）`; left--; setTimeout(tick, 1000); } else { b.disabled = false; b.textContent = sent ? '再寄一次' : '寄驗證碼'; } };
+        const tick = () => { if (!b.isConnected) return; if (left > 0) { b.textContent = `再寄一次（${left}）`; left--; setTimeout(tick, 1000); } else { b.disabled = false; b.textContent = sent ? '再寄一次' : '寄同步碼'; } };
         tick();
       };
       q('#cloudMailIn').onkeydown = ev => { if (ev.key === 'Enter') q('#cloudMailGo').click(); };
