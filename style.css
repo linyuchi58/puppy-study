@@ -742,10 +742,14 @@ body {
 .ty-key.bad { animation: tyBad 0.4s; }
 @keyframes tyBad { 0%, 60% { background: #e5534b !important; color: #fff; } }
 .ty-key.ty-hot { color: #7a1d18; }
-.ty-hands { display: block; width: min(360px, 90%); margin: 10px auto 0; }
+/* v3.12.1：手和鍵盤一樣寬，手指在基準鍵正下方（typing.js 的 layoutHands 依鍵盤位置畫） */
+.ty-hands-box { width: 100%; margin-top: 6px; }
+.ty-hands { display: block; width: 100%; overflow: visible; }
 .ty-palm { fill: #f6dcc5; stroke: #d8b596; stroke-width: 2; }
-.ty-finger { fill: #f6dcc5; stroke: #d8b596; stroke-width: 2; transition: fill 0.15s, transform 0.15s; }
-.ty-finger.on { fill: var(--fc); stroke: #4a3b32; stroke-width: 3; transform: translateY(6px); }
+.ty-finger { transition: transform 0.18s ease-out; }
+.ty-finger rect { fill: #f6dcc5; stroke: #d8b596; stroke-width: 2; transition: fill 0.15s; }
+.ty-finger .ty-nail { fill: #fbeee2; stroke: #e6cdb6; stroke-width: 1; }
+.ty-finger.on rect { fill: var(--fc); stroke: #4a3b32; stroke-width: 3; }
 .ty-result { text-align: center; }
 .ty-big-stars { font-size: 3rem; color: var(--gold); letter-spacing: 6px; }
 .ty-note { font-weight: 800; font-size: 1.05rem; }
@@ -765,7 +769,7 @@ body {
 .ty-play .ty-progress { margin: 6px 0; }
 .ty-play .ty-fname { margin-bottom: 4px; font-size: 1rem; }
 .ty-play .ty-key { height: clamp(28px, 4.6vh, 42px); }
-.ty-play .ty-hands { width: min(250px, 70%); margin-top: 4px; }
+.ty-play .ty-hands-box { margin-top: 2px; }
 @media (max-width: 600px) { .ty-tip { display: none; } }
 
 /* 直放平板、手機：練習時先把夥伴面板收起來，讓鍵盤和雙手一次看得到 */
