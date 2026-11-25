@@ -997,7 +997,8 @@
   // v3.12.1：手跟鍵盤一樣寬，每根手指在自己的基準鍵（A S D F／J K L ;）正下方；
   // 下一個要按的鍵在哪，負責的手指就移到那個鍵的正下方、亮起來（layoutHands 依鍵盤實際位置畫）
   const HOME_KEY = { L5: 'a', L4: 's', L3: 'd', L2: 'f', R2: 'j', R3: 'k', R4: 'l', R5: ';' };
-  const FINGER_LEN = { L5: 1.05, L4: 1.4, L3: 1.6, L2: 1.45, R2: 1.45, R3: 1.6, R4: 1.4, R5: 1.05 };
+  // v3.12.4：接近真的手：中指最長（只長一點）、食指次之、無名指、小指最短；大拇指短短胖胖
+  const FINGER_LEN = { L5: 0.95, L4: 1.25, L3: 1.5, L2: 1.32, R2: 1.32, R3: 1.5, R4: 1.25, R5: 0.95 };
   function handsHtml() { return '<div class="ty-hands-box" aria-hidden="true"><svg class="ty-hands"></svg></div>'; }
   let handGeo = null;
   function layoutHands() {
@@ -1021,19 +1022,20 @@
     const bottom = nav && nav.getBoundingClientRect().top > 0 ? nav.getBoundingClientRect().top : window.innerHeight;
     const full = u * 3.05, avail = bottom - B.top - 6;
     const ky = document.body.classList.contains('ty-playing') && avail < full ? Math.max(0.55, avail / full) : 1;
-    const fw = u * 0.62, palmTop = u * 1.85 * ky, palmH = u * 1.1 * ky, H = palmTop + palmH + u * 0.1 * ky;
+    const uy = Math.max(u * ky, 24);     // 手機的鍵很窄：高度至少留一點，手指長短才看得出來
+    const fw = u * 0.62, palmTop = uy * 1.6, palmH = uy * 0.85, H = palmTop + palmH + uy * 0.1;
     const hx = {};
     Object.keys(HOME_KEY).forEach(f => { hx[f] = keyX[HOME_KEY[f]]; });
     const fingerSvg = f => {
-      const len = FINGER_LEN[f] * u * ky;
-      const x = hx[f] - fw / 2, y = palmTop + u * 0.3 * ky - len;
-      return `<g class="ty-finger" data-f="${f}" style="--fc:${FINGER_COLOR[f]}"><rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${fw.toFixed(1)}" height="${(len + u * 0.2).toFixed(1)}" rx="${(fw / 2).toFixed(1)}"/>` +
+      const len = FINGER_LEN[f] * uy;
+      const x = hx[f] - fw / 2, y = palmTop + uy * 0.3 - len;
+      return `<g class="ty-finger" data-f="${f}" style="--fc:${FINGER_COLOR[f]}"><rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${fw.toFixed(1)}" height="${(len + uy * 0.02).toFixed(1)}" rx="${(fw / 2).toFixed(1)}"/>` +
         `<ellipse class="ty-nail" cx="${hx[f].toFixed(1)}" cy="${(y + fw * 0.55).toFixed(1)}" rx="${(fw * 0.28).toFixed(1)}" ry="${(fw * 0.34).toFixed(1)}"/></g>`;
     };
     const palm = (x1, x2) => `<rect class="ty-palm" x="${x1.toFixed(1)}" y="${palmTop.toFixed(1)}" width="${(x2 - x1).toFixed(1)}" height="${palmH.toFixed(1)}" rx="${(u * 0.6).toFixed(1)}"/>`;
     const lx1 = hx.L5 - u * 0.55, lx2 = hx.L2 + u * 0.5, rx1 = hx.R2 - u * 0.5, rx2 = hx.R5 + u * 0.55;
     const thumb = (side) => {
-      const tw = u * 1.5 * Math.max(0.75, ky), th = fw * 0.95;
+      const tw = Math.max(uy * 0.95, fw * 1.5), th = fw * 1.3;   // 大拇指：短而寬
       const ax = side === 'L' ? lx2 - u * 0.15 : rx1 + u * 0.15, ay = palmTop + palmH * 0.45;
       const x = side === 'L' ? ax - tw * 0.25 : ax - tw * 0.75;
       return `<g class="ty-finger" data-f="T" style="--fc:${FINGER_COLOR.T}"><rect x="${x.toFixed(1)}" y="${(ay - th / 2).toFixed(1)}" width="${tw.toFixed(1)}" height="${th.toFixed(1)}" rx="${(th / 2).toFixed(1)}" transform="rotate(${side === 'L' ? -32 : 32} ${ax.toFixed(1)} ${ay.toFixed(1)})"/></g>`;
@@ -1041,7 +1043,7 @@
     svg.setAttribute('viewBox', `0 0 ${W.toFixed(1)} ${H.toFixed(1)}`);
     svg.style.height = H.toFixed(0) + 'px';
     svg.innerHTML = thumb('L') + thumb('R') + ['L5', 'L4', 'L3', 'L2', 'R2', 'R3', 'R4', 'R5'].map(fingerSvg).join('') + palm(lx1, lx2) + palm(rx1, rx2);
-    handGeo = { keyX, hx, u: u * ky, fw };
+    handGeo = { keyX, hx, u: uy, fw };
     pointFinger(lastPoint);
   }
   // 負責的手指移到要按的鍵正下方、抬起來、亮起來
@@ -1062,12 +1064,11 @@
       for (let i = ai - 1; i >= 0; i--) pos[i] = Math.min(pos[i], pos[i + 1] - gap);
       order.forEach((x, i) => { shift[x] = pos[i] - handGeo.hx[x]; });
     }
-    const lift = -(handGeo ? handGeo.u : 40) * 0.3;
     pane.querySelectorAll('.ty-hands .ty-finger').forEach(el => {
       const on = !!f && el.dataset.f === f;
       el.classList.toggle('on', on);
       const dx = shift[el.dataset.f] || 0;
-      el.style.transform = on ? `translate(${dx.toFixed(1)}px, ${lift.toFixed(1)}px)` : (dx ? `translate(${dx.toFixed(1)}px, 0px)` : '');
+      el.style.transform = dx ? `translate(${dx.toFixed(1)}px, 0px)` : '';   // v3.12.4：要按的手指不抬高、不變長，只移過去、換顏色
     });
     // 要按的手指放在其他手指上面（但還在手掌後面）
     const onEl = pane.querySelector('.ty-hands .ty-finger.on');
