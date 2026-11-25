@@ -1106,3 +1106,5 @@ body.ty-exam .modal-backdrop { z-index: 600; }
 /* v3.12.2：注音符號分類顏色說明 */
 .ty-zh-legend { text-align: center; font-size: .85rem; color: #6b5b4b; margin: 4px 0 0; }
 .ty-kb.zh .ty-zh { font-weight: 900; }
+@media (max-width: 560px) { .ty-zh-legend-more { display: none; } }
+.ty-finger.on rect { filter: drop-shadow(0 0 3px rgba(74, 59, 50, .35)); }

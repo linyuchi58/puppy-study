@@ -65,7 +65,7 @@
   'ˊˇˋ˙'.split('').forEach(c => { ZH_GROUP[c] = '#d4ccf5'; });
   // v3.12.2：鍵用手指顏色，鍵上的注音符號用分類顏色（深色字，淺色鍵上才看得清楚）
   const ZH_INK = { '#a9d6f2': '#1d5f9e', '#b9e4a8': '#1f7a3c', '#fbcf9c': '#b44e00', '#d4ccf5': '#6a45c9' };
-  const ZH_LEGEND = '<div class="ty-zh-legend" aria-hidden="true">符號的顏色：<b style="color:#1d5f9e">聲母</b>　<b style="color:#1f7a3c">介音</b>　<b style="color:#b44e00">韻母</b>　<b style="color:#6a45c9">聲調</b>　（鍵的底色＝用哪根手指）</div>';
+  const ZH_LEGEND = '<div class="ty-zh-legend" aria-hidden="true">符號的顏色：<b style="color:#1d5f9e">聲母</b>　<b style="color:#1f7a3c">介音</b>　<b style="color:#b44e00">韻母</b>　<b style="color:#6a45c9">聲調</b>　<span class="ty-zh-legend-more">（鍵的底色＝用哪根手指）</span></div>';
 
   // ── 關卡 ──────────────────────────────────────────────────
   const LETTER_LESSONS = [
@@ -1041,7 +1041,7 @@
     svg.setAttribute('viewBox', `0 0 ${W.toFixed(1)} ${H.toFixed(1)}`);
     svg.style.height = H.toFixed(0) + 'px';
     svg.innerHTML = thumb('L') + thumb('R') + ['L5', 'L4', 'L3', 'L2', 'R2', 'R3', 'R4', 'R5'].map(fingerSvg).join('') + palm(lx1, lx2) + palm(rx1, rx2);
-    handGeo = { keyX, hx, u: u * ky };
+    handGeo = { keyX, hx, u: u * ky, fw };
     pointFinger(lastPoint);
   }
   // 負責的手指移到要按的鍵正下方、抬起來、亮起來
@@ -1050,13 +1050,29 @@
     lastPoint = k;
     if (!pane) return;
     const f = k != null ? FINGER_OF[k] : null;
+    // v3.12.3：手指移過去時，同一隻手旁邊的手指跟著讓位，不會疊在一起（手機的鍵比較窄）
+    const shift = {};
+    if (f && f !== 'T' && handGeo && handGeo.keyX[k] != null) {
+      const order = f[0] === 'L' ? ['L5', 'L4', 'L3', 'L2'] : ['R2', 'R3', 'R4', 'R5'];
+      const pos = order.map(x => handGeo.hx[x]);
+      const ai = order.indexOf(f);
+      pos[ai] = handGeo.keyX[k];
+      const gap = handGeo.fw * 1.08;
+      for (let i = ai + 1; i < pos.length; i++) pos[i] = Math.max(pos[i], pos[i - 1] + gap);
+      for (let i = ai - 1; i >= 0; i--) pos[i] = Math.min(pos[i], pos[i + 1] - gap);
+      order.forEach((x, i) => { shift[x] = pos[i] - handGeo.hx[x]; });
+    }
+    const lift = -(handGeo ? handGeo.u : 40) * 0.3;
     pane.querySelectorAll('.ty-hands .ty-finger').forEach(el => {
       const on = !!f && el.dataset.f === f;
       el.classList.toggle('on', on);
-      let dx = 0;
-      if (on && handGeo && f !== 'T' && handGeo.keyX[k] != null) dx = handGeo.keyX[k] - handGeo.hx[f];
-      el.style.transform = on ? `translate(${dx.toFixed(1)}px, ${(-(handGeo ? handGeo.u : 40) * 0.3).toFixed(1)}px)` : '';
+      const dx = shift[el.dataset.f] || 0;
+      el.style.transform = on ? `translate(${dx.toFixed(1)}px, ${lift.toFixed(1)}px)` : (dx ? `translate(${dx.toFixed(1)}px, 0px)` : '');
     });
+    // 要按的手指放在其他手指上面（但還在手掌後面）
+    const onEl = pane.querySelector('.ty-hands .ty-finger.on');
+    const svg = pane.querySelector('.ty-hands'), palm = svg && svg.querySelector('.ty-palm');
+    if (onEl && palm && onEl.dataset.f !== 'T') svg.insertBefore(onEl, palm);
   }
 
   // 全形標點的按法（微軟注音，中文模式）。v3.7.4：依微軟官方說明改成「Ctrl（＋Shift）＋符號鍵」，
@@ -1608,7 +1624,7 @@
     _t: {
       LETTER_LESSONS, ZH_LESSONS, FINGER_OF, LETTERS_BEFORE, ZH_OF_KEY, KEY_OF_ZH, CODE_KEY, MODES,
       CN_LESSONS, cnText, cnCompare, cnEvaluate, TIMES,
-      layoutHands, get handGeo() { return handGeo; },
+      layoutHands, pointFinger, get handGeo() { return handGeo; },
       makeText, makeRun, startLesson, handleKey, starsFor, unlockedIndex, parseCode, makeCode, testText, scoreOf, qrPayload,
       prepareTest, startTest, finishTest, common, unlockCode, creditSerious, treatBox, TREAT_MS, isExam: () => exam, releaseLock, showLastTest, lockExpired, LOCK_MAX_MS, guessFrom, setIme, imeGuess: () => imeGuess, checkUnsent, cnEvaluate,
       _comp: (on, data, since) => { composing = on; compData = data || ''; compSince = since || 0; },
