@@ -63,6 +63,9 @@
   'ㄧㄨㄩ'.split('').forEach(c => { ZH_GROUP[c] = '#b9e4a8'; });
   'ㄚㄛㄜㄝㄞㄟㄠㄡㄢㄣㄤㄥㄦ'.split('').forEach(c => { ZH_GROUP[c] = '#fbcf9c'; });
   'ˊˇˋ˙'.split('').forEach(c => { ZH_GROUP[c] = '#d4ccf5'; });
+  // v3.12.2：鍵用手指顏色，鍵上的注音符號用分類顏色（深色字，淺色鍵上才看得清楚）
+  const ZH_INK = { '#a9d6f2': '#1d5f9e', '#b9e4a8': '#1f7a3c', '#fbcf9c': '#b44e00', '#d4ccf5': '#6a45c9' };
+  const ZH_LEGEND = '<div class="ty-zh-legend" aria-hidden="true">符號的顏色：<b style="color:#1d5f9e">聲母</b>　<b style="color:#1f7a3c">介音</b>　<b style="color:#b44e00">韻母</b>　<b style="color:#6a45c9">聲調</b>　（鍵的底色＝用哪根手指）</div>';
 
   // ── 關卡 ──────────────────────────────────────────────────
   const LETTER_LESSONS = [
@@ -985,10 +988,10 @@
         }
       }
       const label = LABEL[k] || (k.length === 1 ? k.toUpperCase() : k);
-      const inner = zh && sym ? `<b class="ty-zh">${sym}</b><small>${esc(label)}</small>` : esc(zh && k === ' ' ? '空白鍵（一聲）' : label);
+      const inner = zh && sym ? `<b class="ty-zh" style="color:${ZH_INK[ZH_GROUP[sym]] || '#3b2d22'}">${sym}</b><small>${esc(label)}</small>` : esc(zh && k === ' ' ? '空白鍵（一聲）' : label);
       const bump = (k === 'f' || k === 'j') ? '<i class="ty-bump"></i>' : '';
       return `<div class="ty-key${extra}" data-k="${esc(k)}" style="flex:${w};background:${bg}">${inner}${bump}</div>`;
-    }).join('') + '</div>').join('') + '</div>';
+    }).join('') + '</div>').join('') + '</div>' + (zh && !heat ? ZH_LEGEND : '');
   }
 
   // v3.12.1：手跟鍵盤一樣寬，每根手指在自己的基準鍵（A S D F／J K L ;）正下方；
