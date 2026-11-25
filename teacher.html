@@ -74,7 +74,7 @@
     .ts-row.bad { background: #ffeaea; border-color: #f0a0a0; }
     .ts-tag { font-weight: 900; font-size: 1.3rem; }
     .ts-who { color: var(--muted); font-weight: 700; }
-    .ts-code { font-size: 2rem; font-weight: 900; letter-spacing: .08em; font-variant-numeric: tabular-nums; color: #1f5f99; }
+    .ts-code { font-size: 2.6rem; font-weight: 900; letter-spacing: .12em; font-variant-numeric: tabular-nums; color: #1f5f99; }
     .ts-n { font-weight: 900; color: #b37400; }
     .ts-bad { color: var(--red); font-weight: 800; }
     #stampBar { background: #fffbea; border: 2px dashed #f0b400; border-radius: 14px; padding: 8px 12px; margin: 8px 0; }
@@ -191,12 +191,12 @@
     </section>
   </main>
 
-  <script src="./stamp.js?v=20261124-8"></script>
-  <script src="./cloud_config.js?v=20261124-8"></script>
-  <script src="./teacher_stamp.js?v=20261124-8"></script>
-  <script src="./typing.js?v=20261124-8"></script>
-  <script src="./jsqr.js?v=20261124-8"></script>
-  <script src="./zxing_reader.js?v=20261124-8"></script>
+  <script src="./stamp.js?v=20261125-1"></script>
+  <script src="./cloud_config.js?v=20261125-1"></script>
+  <script src="./teacher_stamp.js?v=20261125-1"></script>
+  <script src="./typing.js?v=20261125-1"></script>
+  <script src="./jsqr.js?v=20261125-1"></script>
+  <script src="./zxing_reader.js?v=20261125-1"></script>
   <script>
   (function () {
     'use strict';
@@ -471,7 +471,7 @@
     try {
       if (window.ZXingWASM && window.WebAssembly) {
         window.ZXingWASM.prepareZXingModule({
-          overrides: { locateFile: (path, prefix) => (path.endsWith('.wasm') ? './zxing_reader.wasm?v=20261124-8' : prefix + path) },
+          overrides: { locateFile: (path, prefix) => (path.endsWith('.wasm') ? './zxing_reader.wasm?v=20261125-1' : prefix + path) },
           fireImmediately: true
         }).then(() => { zx = window.ZXingWASM; }).catch(() => { zx = null; });
       }
@@ -858,13 +858,13 @@
         const TS = window.PuppyTeacherStamp, TT = TS && TS._t;
         if (TT) {
           const K = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
-          ok(TT.fpOf(K) === '401874' && TT.codeOf(K, 'abcdef', '261124', '1a2b', 3) === '993742' && TT.codeOf(K, 'abcdef', '261124', '1a2b', 10) === '829421', '老師蓋章碼算法正確（和學生端相同）');
+          ok(TT.fpOf(K) === '401874' && TT.codesOf(K, 'abcdef', '261124', '1a2b').join(',') === '41,91,78,85,71,72,21,33,59,80', '老師蓋章 2 位數算法正確（和學生端相同，+1～+10 各一組不重複）');
           TT.reset(); TT.adopt({ email: 't@x.tw', name: '林老師', tcode: 'ABCDEF', key: K });
           TT.st.stars = 4;
           const today = TT.dayStr(), nRows = rows.length;
           seen.clear(); handleFound(['PTS1.401874.abcdef.' + today + '.1a2b.4-3-12']);
           const lg = TT.st.log[TT.st.log.length - 1];
-          ok(lg && lg.n === 4 && lg.code === TT.codeOf(K, 'abcdef', today, '1a2b', 4) && lg.who === '4 年 3 班 12 號' && rows.length === nRows, '掃到學生蓋章 QR：算出 6 位數（+4⭐），顯示座號，不會收進成績表');
+          ok(lg && lg.n === 4 && lg.code === TT.codeOf(K, 'abcdef', today, '1a2b', 4) && /^\d\d$/.test(lg.code) && lg.who === '4 年 3 班 12 號' && rows.length === nRows, '掃到學生蓋章 QR：算出 2 位數（+4⭐），顯示座號，不會收進成績表');
           ok(TS.scan('PTS1.401874.abcdef.' + today + '.1a2b.')[3] === 'dup', '同一個 QR 再掃：說掃過了，數字一樣');
           ok(TS.scan('PTS1.123456.abcdef.' + today + '.9c9c.')[0] === false && /不是你現在的老師代碼/.test(TT.st.log[TT.st.log.length - 1].bad), '學生加入的是別的（或舊的）老師代碼：紅色提醒，不給數字');
           ok(TS.scan('PTS1.401874.abcdef.200101.7d7d.')[0] === false, '學生裝置日期不是今天：不給數字');

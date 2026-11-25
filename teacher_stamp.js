@@ -1,6 +1,7 @@
 // 《汪汪小精靈 學習小伙伴》老師蓋章：收成績頁（teacher.html）的老師端（v3.11.0）
 // 老師用信箱驗證（要在試算表「老師名單」上）→ 拿到老師代碼（投影給學生加入）和蓋章金鑰（只存在這支手機）。
-// 掃學生「請老師蓋章」的 QR → 算出 6 位數給學生打（裡面藏著 +1～+10 星星，學生改不了）。
+// 掃學生「請老師蓋章」的 QR → 算出 2 位數，手機自動唸「D7，請輸入 四 七」（+1～+10 每一種星星數各有一組不重複的 2 位數，學生改不了）。
+// v3.11.1：老師 11-25 決定從 6 位數改成 2 位數＋自動唸，學生一天最多試 3 次。
 // 學生 QR：PTS1.<老師指紋>.<裝置>.<日期 yyMMdd>.<亂數>.<年-班-座號，可以空白>
 (function () {
   'use strict';
@@ -19,7 +20,28 @@
 
   // 和學生端（app.js）同一套算法，兩邊要一起改
   const fpOf = key => S.code(key, 'tfp');
-  const codeOf = (key, dev, day, nonce, n) => S.code(key, ['tstamp', dev, day, nonce, n].join('|'));
+  // +1～+10 各一組 2 位數，彼此不重複（重複就換下一組），知道其中一組也推不出別組
+  function codesOf(key, dev, day, nonce) {
+    const out = [];
+    for (let n = 1; n <= 10; n++) for (let j = 0; ; j++) { const c = S.code(key, ['tstamp2', dev, day, nonce, n, j].join('|')).slice(-2); if (!out.includes(c)) { out.push(c); break; } }
+    return out;
+  }
+  const codeOf = (key, dev, day, nonce, n) => codesOf(key, dev, day, nonce)[n - 1];
+  // 唸出來：「D7，請輸入 四 七」
+  const ZH = '零一二三四五六七八九';
+  if (typeof st.speak !== 'boolean') st.speak = true;
+  function sayCode(row) {
+    if (!st.speak || !row || !row.code || !window.speechSynthesis) return;
+    try {
+      const u = new SpeechSynthesisUtterance(String(row.tag || '').replace(/^\S+\s/, '') + '，請輸入 ' + row.code.split('').map(d => ZH[+d]).join(' '));
+      u.lang = 'zh-TW'; u.rate = 0.9;
+      const v = speechSynthesis.getVoices().find(x => /zh[-_](TW|Hant)/i.test(x.lang)) || speechSynthesis.getVoices().find(x => /^zh/i.test(x.lang));
+      if (v) u.voice = v;
+      speechSynthesis.speak(u);        // 一次掃好幾位：會排隊一個一個唸
+    } catch (e) { /* 這台不能唸：看畫面 */ }
+  }
+  // iPhone 要在按鈕按下去的那一刻先「唸」一次，之後才唸得出來
+  function unlockSpeech() { try { if (window.speechSynthesis) { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } } catch (e) { /* 忽略 */ } }
   const tagOf = nonce => '🐶 ' + 'ABCDEFGHJKMNPQRSTUVWXYZ'[parseInt(nonce.slice(0, 2), 16) % 23] + (parseInt(nonce.slice(2, 4), 16) % 9 + 1);
   const pinHash = pin => S.code('70696e2d73616c742d7075707079', 'pin|' + (st.email || '') + '|' + pin);
   function dayStr(d) { d = d || new Date(); const z = n => String(n).padStart(2, '0'); return String(d.getFullYear()).slice(2) + z(d.getMonth() + 1) + z(d.getDate()); }
@@ -91,14 +113,15 @@
         <ol class="note" style="margin:4px 0 8px 1.2em;padding:0;line-height:1.8;">
           <li>學生在「自我打卡」頁按「👍 請老師蓋章」，螢幕出現 QR 和號碼牌。</li>
           <li>這裡選好要給幾顆星，按「📷 開始掃描」，一次可以掃好幾台。</li>
-          <li>下面會列出每位學生的 <b>6 位數</b>，請學生打進去。每位學生一天一次。</li>
+          <li>手機會<b>唸出</b>「號碼牌，請輸入 2 位數」，下面也會列出來，學生自己打進去。每位學生一天一次。</li>
         </ol>
         <div class="row" style="align-items:center;">
           <b>這次給：</b>
           <div class="ts-stars" id="tsStars">${Array.from({ length: 10 }, (_, i) => `<button data-n="${i + 1}" class="${st.stars === i + 1 ? 'on' : ''}">+${i + 1}</button>`).join('')}</div>
           <span>⭐（會記住，下次一樣）</span>
         </div>
-        <div class="row"><button class="main" id="tsScan">📷 開始掃描</button></div>
+        <div class="row" style="align-items:center;"><button class="main" id="tsScan">📷 開始掃描</button>
+          <label style="font-weight:800;"><input type="checkbox" id="tsSpeak" ${st.speak ? 'checked' : ''}> 🔊 自動唸出數字</label></div>
         <h2 style="margin-top:14px;">今天蓋的章（${todays.length}）</h2>
         <div class="ts-list" id="tsList">${listHtml(todays)}</div>
       </div>
@@ -115,7 +138,8 @@
         <p class="warn" id="tsMsg" style="color:#7a5200;">${esc(msg)}</p>
       </div>`;
     el.querySelectorAll('#tsStars button').forEach(b => b.onclick = () => { st.stars = +b.dataset.n; save(); render(); });
-    $('tsScan').onclick = () => { if (window.PuppyTeacherHooks && window.PuppyTeacherHooks.scan) window.PuppyTeacherHooks.scan(); };
+    $('tsScan').onclick = () => { unlockSpeech(); if (window.PuppyTeacherHooks && window.PuppyTeacherHooks.scan) window.PuppyTeacherHooks.scan(); };
+    $('tsSpeak').onchange = ev => { st.speak = ev.target.checked; save(); if (st.speak) unlockSpeech(); };
     $('tsShow').onclick = () => {
       const big = $('tsBig');
       if (!big.hidden) { big.hidden = true; return; }
@@ -133,7 +157,7 @@
       <div class="ts-row ${x.bad ? 'bad' : ''}">
         <span class="ts-tag">${esc(x.tag || '')}</span>
         <span class="ts-who">${esc(x.who || '')}</span>
-        ${x.bad ? `<span class="ts-bad">${esc(x.bad)}</span>` : `<span class="ts-code">${esc(x.code.slice(0, 3) + ' ' + x.code.slice(3))}</span><span class="ts-n">+${x.n}⭐</span>`}
+        ${x.bad ? `<span class="ts-bad">${esc(x.bad)}</span>` : `<span class="ts-code">${esc(x.code)}</span><span class="ts-n">+${x.n}⭐</span>`}
       </div>`).join('');
   }
   // 收成績分頁（相機那一頁）上方的小條：掃到的蓋章碼也顯示在這裡
@@ -145,9 +169,11 @@
     const todays = st.log.filter(x => x.day === dayStr());
     bar.innerHTML = `<div class="row" style="align-items:center;margin:0;"><b>👍 老師蓋章：這次給</b>
       <select id="tsBarN">${Array.from({ length: 10 }, (_, i) => `<option value="${i + 1}" ${st.stars === i + 1 ? 'selected' : ''}>+${i + 1} ⭐</option>`).join('')}</select>
-      <span class="note">掃到學生的蓋章 QR，6 位數會列在下面</span></div>
+      <label style="font-weight:800;"><input type="checkbox" id="tsBarSpeak" ${st.speak ? 'checked' : ''}> 🔊 唸出</label>
+      <span class="note">掃到學生的蓋章 QR，手機會唸出 2 位數，也列在下面</span></div>
       <div class="ts-list">${listHtml(todays.slice(-8))}</div>`;
     $('tsBarN').onchange = ev => { st.stars = +ev.target.value; save(); };
+    $('tsBarSpeak').onchange = ev => { st.speak = ev.target.checked; save(); if (st.speak) unlockSpeech(); };
   }
 
   async function sendCode() {
@@ -188,7 +214,7 @@
     const big = $('tsBig'); big.textContent = st.tcode.slice(0, 3) + ' ' + st.tcode.slice(3); big.hidden = false;
   }
 
-  // ── 掃到 QR：是不是學生的蓋章 QR？是的話算出 6 位數 ──
+  // ── 掃到 QR：是不是學生的蓋章 QR？是的話算出 2 位數、唸出來 ──
   // 回傳 null（不是蓋章 QR）或 [成功?, 訊息, 一列資料]
   function scan(text) {
     const p = String(text || '').split('.');
@@ -199,7 +225,7 @@
     const tag = tagOf(p[4]);
     const who = /^\d{1,2}-\d{1,2}-\d{1,2}$/.test(p[5]) ? p[5].replace(/^(\d+)-(\d+)-(\d+)$/, '$1 年 $2 班 $3 號') : '';
     let row = st.log.find(x => x.day === today && x.dev === p[2] && x.nonce === p[4]);
-    if (row) return [true, `${tag} 已經掃過了：${row.bad || row.code}`, row, 'dup'];
+    if (row) { if (!row.bad && (!row.said || Date.now() - row.said > 4000)) { row.said = Date.now(); sayCode(row); } return [true, `${tag} 已經掃過了：${row.bad || '請輸入 ' + row.code}`, row, 'dup']; }
     row = { day: today, dev: p[2], nonce: p[4], tag, who, at: Date.now() };
     if (p[1] !== st.fp) row.bad = '⚠ 加入的不是你現在的老師代碼，請他重新加入';
     else if (p[3] !== today) row.bad = '⚠ 學生裝置的日期不是今天';
@@ -208,12 +234,13 @@
     st.log = st.log.filter(x => x.day >= dayStr(new Date(Date.now() - 7 * 864e5))).slice(-300);
     save();
     render();
-    return row.bad ? [false, `${tag} ${row.bad}`, row, 'bad'] : [true, `${tag}${who ? '（' + who + '）' : ''}：${row.code.slice(0, 3)} ${row.code.slice(3)}（+${row.n}⭐）`, row, 'new'];
+    if (!row.bad) { row.said = Date.now(); sayCode(row); }
+    return row.bad ? [false, `${tag} ${row.bad}`, row, 'bad'] : [true, `${tag}${who ? '（' + who + '）' : ''}：請輸入 ${row.code}（+${row.n}⭐）`, row, 'new'];
   }
 
   window.PuppyTeacherStamp = {
     mount() { render(); },
     render, scan,
-    _t: { get st() { return st; }, set api(f) { api = f; }, fpOf, codeOf, tagOf, dayStr, adopt, save, reset() { st = { stars: 3, log: [] }; save(); } }
+    _t: { get st() { return st; }, set api(f) { api = f; }, fpOf, codeOf, codesOf, tagOf, unlockSpeech, dayStr, adopt, save, reset() { st = { stars: 3, log: [] }; save(); } }
   };
 })();
