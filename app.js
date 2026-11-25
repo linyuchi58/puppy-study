@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.11.2';
-  const APP_BUILD = '20261125-2';
+  const APP_VERSION = 'v3.12.0';
+  const APP_BUILD = '20261125-3';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
@@ -298,6 +298,9 @@
     ['stamps', 'tries'].forEach(k => { if (!base.tstamp[k] || typeof base.tstamp[k] !== 'object' || Array.isArray(base.tstamp[k])) base.tstamp[k] = {}; });
     base.tstamp.invalid = !!base.tstamp.invalid;
     if (!base.tstamp.pending || typeof base.tstamp.pending !== 'object') base.tstamp.pending = null;
+    // v3.12.0 SEL：只記每天拿過幾次星星（沒有心情內容；心情日記在 sel.js 另外存，不上雲端）
+    if (!base.selc || typeof base.selc !== 'object' || Array.isArray(base.selc)) base.selc = { days: {} };
+    if (!base.selc.days || typeof base.selc.days !== 'object') base.selc.days = {};
     if (!Array.isArray(base.custom_habits)) base.custom_habits = [];
     if (!base.checkins || typeof base.checkins !== 'object') base.checkins = {};
     if (!base.totals || typeof base.totals !== 'object') base.totals = {};
@@ -832,8 +835,12 @@
     const learned = TRICKS.filter(t => t[3] <= lv).length;
     const open = state.settings.play_open !== false;
     const tabs = [['food', '🍖 餵食'], ['toy', '🎾 玩具'], ['trick', `🎓 才藝 ${learned}/${TRICKS.length}`]];
+    if (window.PuppySEL) tabs.push(['tease', '😜 惡作劇']);   // v3.12.0 SEL
     let grid = '';
-    if (playTab === 'trick') {
+    if (playTab === 'tease' && window.PuppySEL) {
+      grid = window.PuppySEL.TEASES.map(([k, icon, name]) => `<button class="chip-btn" data-tease="${k}">${icon} ${name}</button>`).join('') +
+        '<button class="chip-btn chip-mood" data-mood="1">🌈 心情小站</button>';
+    } else if (playTab === 'trick') {
       grid = TRICKS.map(([cmd, icon, name, need]) => need <= lv
         ? `<button class="chip-btn" data-trick="${cmd}">${icon} ${name}</button>`
         : `<button class="chip-btn chip-locked" data-trick="${cmd}" aria-label="${name}，親密度 Lv${need} 解鎖">🔒 ${name}<small>Lv${need}</small></button>`
@@ -845,7 +852,8 @@
       }).join('');
     }
     const nextTrick = TRICKS.find(t => t[3] > lv);
-    const tip = playTab === 'trick'
+    const tip = playTab === 'tease' ? '小小捉弄一下沒關係，但一直捉弄，夥伴會委屈、生氣喔。捉弄不會拿到星星，照顧心情才會。'
+      : playTab === 'trick'
       ? (nextTrick ? `下一個才藝：Lv${nextTrick[3]} ${nextTrick[1]}${nextTrick[2]}（還差 ${Math.max(1, BOND_LV[nextTrick[3] - 1] - maxBondPts())} 點親密度）` : '全部才藝都學會了，太厲害了！')
       : (playTab === 'food' ? '用學習賺到的星星請夥伴吃東西。吃飽了才有力氣玩和表演。' : '買一次玩具可以用手指丟好幾次。直接摸頭、抓起來放開都免費。');
     box.innerHTML = `
@@ -878,6 +886,10 @@
         useItem(btn.dataset.item);
       } else if (btn.dataset.trick) {
         doTrick(btn.dataset.trick);
+      } else if (btn.dataset.tease && window.PuppySEL) {
+        window.PuppySEL.tease(btn.dataset.tease);
+      } else if (btn.dataset.mood && window.PuppySEL) {
+        window.PuppySEL.station();
       }
     });
     renderPlayground();
@@ -2586,6 +2598,21 @@
 
     document.getElementById('petCanvasWrap').addEventListener('click', touchPet);
     document.getElementById('btnPetTouch').addEventListener('click', touchPet);
+    // v3.12.0 SEL：🌈 心情小站
+    if (window.PuppySEL) {
+      const pr = PETS.find(p => p[0] === state.pets.current) || PETS[0];
+      window.PuppySEL.mount({
+        getState: () => state,
+        award: (xp, stars, subj, text) => award(xp, stars, subj, text),
+        say: (text, mood) => { petSay(text, mood === 'happy' ? 'happy' : 'normal'); try { if (window.PuppyInteractive) window.PuppyInteractive.say(text, mood === 'happy' ? 'happy' : 'normal', mood === 'sad' ? '#7a6bd1' : '#2fa86b'); } catch (e) { /* 忽略 */ } },
+        petName: () => (PETS.find(p => p[0] === state.pets.current) || pr)[2],
+        petIcon: () => (PETS.find(p => p[0] === state.pets.current) || pr)[1],
+        isDog: () => String(state.pets.current || 'dog:').startsWith('dog:'),
+        grade: () => state.grade
+      });
+      const mb = document.getElementById('btnOpenMood');
+      if (mb) mb.addEventListener('click', () => window.PuppySEL.station());
+    }
     document.getElementById('btnOpenShop').addEventListener('click', openShopModal);
     document.getElementById('btnOpenCard').addEventListener('click', openPetCardModal);
     document.getElementById('modalBackdrop').addEventListener('click', ev => {
@@ -2851,11 +2878,35 @@
         ok(tryTeacherStamp(good)[0] === false, '老師蓋章一天一次');
         t.stamps = {}; t.tries = {};
         tsRequest();
-        for (let i = 0; i < TSTAMP_TRIES; i++) tryTeacherStamp(bad);
+        const all2 = tsCodes(K, t.dev, tsDay(), t.pending.nonce);
+        const bad2 = ['00', '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11'].find(c => !all2.includes(c));   // 新的號碼要另外挑一個錯的
+        for (let i = 0; i < TSTAMP_TRIES; i++) tryTeacherStamp(bad2);
         ok(/明天/.test(tryTeacherStamp(tsCode(K, t.dev, tsDay(), t.pending.nonce, 2))[1]), `一天最多試 ${TSTAMP_TRIES} 次（防亂猜）`);
         t.invalid = true;
         ok(!tsJoined(), '老師換了代碼（雲端說無效）：要重新加入');
         state.tstamp = normalizeData(defaultData()).tstamp; state.totals.teacher_stamps = 0; if (hadTyping) state.typing.who = { g: 0, c: 0, s: 0 }; else delete state.typing;
+      }
+      // v3.12.0 SEL 心情小站
+      if (window.PuppySEL) {
+        const SL = window.PuppySEL, ST = SL._t;
+        ST.reset();
+        { const d = ST.load(); d.last_care = Date.now() / 1000; ST.save(d); }      // 自我測試時不要真的跳出關懷模式
+        const lv = [];
+        for (let i = 0; i < 8; i++) lv.push(SL.tease(SL.TEASES[i % 6][0]));
+        ok(lv[0] === 'fun' && lv.includes('sad') && lv[7] === 'angry' && ST.annoyance() >= ST.CARE_AT, '小惡作劇：前幾下好玩，一直捉弄會委屈、生氣，累積到關懷模式的門檻（' + lv.join(',') + '）');
+        ST.reset();
+        const s0 = state.stars;
+        for (let i = 0; i < 4; i++) ST.calmReward('呼吸泡泡');
+        ok(state.stars === s0 + 3 && ST.counts().calm === 3, '冷靜小工具做完 +1⭐，一天最多 3 次');
+        ST.moodReward(); ST.moodReward(); ST.careReward(); ST.careReward();
+        ok(state.stars === s0 + 5, '每天第一次量心情 +1⭐、走完關懷模式 +1⭐（一天各一次）：SEL 一天最多 5⭐');
+        ok(ST.has('我真的不想活了', ST.SELF_HARM) && ST.has('他 一直 笑我', ST.BULLY) && ST.has('爸爸打我', ST.ABUSE) && !ST.has('今天好開心', ST.SELF_HARM.concat(ST.ABUSE, ST.BULLY)), '說說話：想傷害自己、被打、被欺負的字詞認得出來（空白也不影響）');
+        ST.addEntry({ emo: 'sad', lv: 3, tool: 'breath', after: 1, from: 'self' });
+        let raw = ''; try { raw = localStorage.getItem(ST.storeKey()) || ''; } catch (e) { /* 忽略 */ }
+        ok(raw.includes('"emo":"sad"') && !JSON.stringify(state).includes('"emo":"sad"') && JSON.stringify(state.selc).length < 200, '心情日記存在主要進度以外（不會上雲端、不進搬家碼）；主要進度只有每天拿星星的次數');
+        SL.forget('');
+        ok(ST.load().entries.length === 0, '登出清掉這台進度時，心情日記也一起清掉');
+        ST.reset(); state.selc = { days: {} }; state.stars = s0;
       }
       // 英打練習（v3.5.0）
       const T = window.PuppyTyping && window.PuppyTyping._t;

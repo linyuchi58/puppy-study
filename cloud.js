@@ -264,7 +264,10 @@
     const m = meta;
     try { await api({ a: 'logout', sub: m.sub, key: m.key }); } catch (e) { /* 沒網路也照樣登出 */ }
     meta = null; saveMeta(); clearTimeout(timer); firstDirtyAt = 0;
-    if (clearLocal) { suppress++; try { app().resetLocal(false); } finally { suppress--; } }
+    if (clearLocal) {
+      suppress++; try { app().resetLocal(false); } finally { suppress--; }
+      try { if (window.PuppySEL) window.PuppySEL.forget(m.sub); } catch (e) { /* 忽略 */ }   // v3.12.0：這個帳號的心情日記也清掉
+    }
     setStatus('');
     app().say(clearLocal ? '👋 已經登出，這台裝置上的進度也清掉了（雲端上還在）。' : '👋 已經登出。');
     render(box);

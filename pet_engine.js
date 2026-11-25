@@ -1770,6 +1770,7 @@
           const now = performance.now() / 1000;
           world.dog.poke_times = world.dog.poke_times.filter(t => now - t < 3.0);
           world.dog.poke_times.push(now);
+          try { window.dispatchEvent(new CustomEvent('puppy-poke', { detail: { angry: world.dog.poke_times.length >= 6 } })); } catch (e) { /* 舊瀏覽器 */ }   // v3.12.0 SEL
           if (world.dog.poke_times.length >= 6) {
             world.dog.poke_times = [];
             world.dog.setState('angry', 4.0);
@@ -1847,6 +1848,17 @@
     command(cmd) {
       if (!world.dog) return;
       world.dog.command(cmd, true);
+    },
+    // v3.12.0 SEL：小惡作劇和關懷模式的反應（fun 好玩、sad 委屈、angry 生氣、pat 被摸頭、ball 真的丟球）
+    react(kind) {
+      const d = world.dog;
+      if (!d) return;
+      if (kind === 'ball') { window.PuppyInteractive.throwToy('ball'); return; }
+      if (d.busy() && kind !== 'angry') return;
+      if (kind === 'fun') { d.setState(Math.random() < 0.5 ? 'happy' : 'scratch', 2.2); playTone('yip'); }
+      else if (kind === 'sad') { d.setState('lie', 3.0); playTone('growl'); }
+      else if (kind === 'angry') { d.setState('angry', 3.0); playTone('growl'); }
+      else if (kind === 'pat') { d.emitHeart(); d.emitHeart(); d.setState('happy', 2.8); playTone('yip'); }
     },
     throwToy(kind = 'ball') {
       if (!world.dog) return;
