@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.12.4';
-  const APP_BUILD = '20261125-7';
+  const APP_VERSION = 'v3.13.0';
+  const APP_BUILD = '20261125-8';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
@@ -305,6 +305,9 @@
     if (!base.checkins || typeof base.checkins !== 'object') base.checkins = {};
     if (!base.totals || typeof base.totals !== 'object') base.totals = {};
     if (!base.streak || typeof base.streak !== 'object') base.streak = { n: 0, last: '', best: 0, freeze: 0 };
+    // v3.13.0 連續學習轉盤：記下哪一天轉過（一天一次）
+    if (!base.wheel || typeof base.wheel !== 'object' || Array.isArray(base.wheel)) base.wheel = { last: '', spins: 0 };
+    if (typeof base.wheel.last !== 'string') base.wheel.last = '';
     if (!base.history || typeof base.history !== 'object') base.history = {};
     base.stars = Math.max(0, parseInt(base.stars, 10) || 0);
     base.xp_total = Math.max(0, parseInt(base.xp_total, 10) || 0);
@@ -726,6 +729,44 @@
     if (!announceBond(bondRes, petRow[2])) {
       petSay(`✨ ${reasonText}：獲得 +${totalXp} XP${stars > 0 ? `、+${stars}⭐` : ''} ${bonusNote}`, 'happy');
     }
+    wheelSoon();
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  //  v3.13.0 🎡 連續學習轉盤（老師 11-25 決定，方式 A）
+  //  昨天有學習、今天第一次完成學習活動 → 轉盤掉下來（一天一次）。
+  //  獎勵固定：連續 N 天 +N⭐（最多 +7⭐）；轉盤只決定狗狗的驚喜表演，每一格價值一樣。
+  // ════════════════════════════════════════════════════════════════════
+  function wheelDue() {
+    const td = todayStr(), st = state.streak, w = state.wheel || {};
+    return st.last === td && (st.n || 0) >= 2 && w.last !== td;
+  }
+  // 正在練習、考試、看其他視窗時先不要打擾，等空下來再掉下來
+  function wheelBusy() {
+    if (document.hidden) return true;
+    if (document.body.classList.contains('ty-exam') || document.body.classList.contains('ty-playing')) return true;
+    if (window.PuppyTyping && window.PuppyTyping.isPlaying && window.PuppyTyping.isPlaying()) return true;
+    if (window.PuppyMath && window.PuppyMath.isPlaying && window.PuppyMath.isPlaying()) return true;
+    if (currentQuiz && activeTab === 'english') return true;
+    if (window.PuppySEL && window.PuppySEL.isOpen && window.PuppySEL.isOpen()) return true;
+    const bd = document.getElementById('modalBackdrop');
+    if (bd && bd.classList.contains('open')) return true;
+    return false;
+  }
+  let wheelTimer = 0;
+  function wheelSoon(delay) {
+    if (SELFTEST || !window.PuppyWheel || wheelTimer || !wheelDue()) return;
+    wheelTimer = setTimeout(function tryShow() {
+      wheelTimer = 0;
+      if (!wheelDue() || window.PuppyWheel.isOpen()) return;
+      if (wheelBusy()) { wheelTimer = setTimeout(tryShow, 2500); return; }
+      const n = state.streak.n, td = todayStr();
+      window.PuppyWheel.show(n, () => {
+        state.wheel.last = td;
+        state.wheel.spins = (state.wheel.spins || 0) + 1;
+        award(0, window.PuppyWheel.starsFor(n), null, `🔥 連續學習 ${n} 天`);
+      });
+    }, delay == null ? 1800 : delay);
   }
 
   // ════════════════════════════════════════════════════════════════════
@@ -2613,6 +2654,45 @@
       const mb = document.getElementById('btnOpenMood');
       if (mb) mb.addEventListener('click', () => window.PuppySEL.station());
     }
+    // v3.13.0 🎡 連續學習轉盤
+    if (window.PuppyWheel) {
+      const cur = () => PETS.find(p => p[0] === state.pets.current) || PETS[0];
+      window.PuppyWheel.mount({
+        petName: () => cur()[2],
+        petIcon: () => cur()[1],
+        dog: kind => { try { if (window.PuppyInteractive && window.PuppyInteractive.react) window.PuppyInteractive.react(kind); } catch (e) { /* 忽略 */ } },
+        feed: () => { addFullness(15); saveState(); }
+      });
+      wheelSoon(4000);      // 重新整理後，如果今天該轉還沒轉，也會掉下來
+    }
+    // v3.13.0 ⛶ 全螢幕
+    (function setupFullscreen() {
+      const b = document.getElementById('btnFullscreen');
+      if (!b) return;
+      const de = document.documentElement;
+      const can = !!(de.requestFullscreen || de.webkitRequestFullscreen);
+      const isFs = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+      const standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone;
+      if (standalone) { b.hidden = true; return; }       // 從主畫面打開的已經是全螢幕
+      const paint = () => { b.textContent = isFs() ? '⤡ 縮小' : '⛶ 全螢幕'; b.title = isFs() ? '離開全螢幕' : '全螢幕顯示'; b.setAttribute('aria-label', b.title); };
+      b.addEventListener('click', () => {
+        if (!can) {
+          openModal(`<div class="section-title"><span>⛶ 全螢幕</span><button class="btn btn-soft" id="btnCloseModal" style="min-height:36px;padding:4px 12px;">✕</button></div>
+            <p>iPhone 的瀏覽器不能把網頁變成全螢幕，可以這樣做：</p>
+            <ol style="line-height:1.9;"><li>按 Safari 下面的「分享」按鈕 <b>⎙</b></li><li>選「<b>加入主畫面</b>」</li><li>之後從主畫面的 🐶 圖示打開，就是全螢幕了</li></ol>
+            <p class="section-sub">學習進度不會不見，一樣存在這支手機。</p>`);
+          document.getElementById('btnCloseModal').addEventListener('click', closeModal);
+          return;
+        }
+        try {
+          if (isFs()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+          else (de.requestFullscreen || de.webkitRequestFullscreen).call(de);
+        } catch (e) { /* 瀏覽器不讓：就不動 */ }
+      });
+      document.addEventListener('fullscreenchange', paint);
+      document.addEventListener('webkitfullscreenchange', paint);
+      paint();
+    })();
     document.getElementById('btnOpenShop').addEventListener('click', openShopModal);
     document.getElementById('btnOpenCard').addEventListener('click', openPetCardModal);
     document.getElementById('modalBackdrop').addEventListener('click', ev => {
@@ -2885,6 +2965,19 @@
         t.invalid = true;
         ok(!tsJoined(), '老師換了代碼（雲端說無效）：要重新加入');
         state.tstamp = normalizeData(defaultData()).tstamp; state.totals.teacher_stamps = 0; if (hadTyping) state.typing.who = { g: 0, c: 0, s: 0 }; else delete state.typing;
+      }
+      // v3.13.0 連續學習轉盤
+      {
+        const st0 = JSON.stringify(state.streak), w0 = JSON.stringify(state.wheel), td = todayStr();
+        state.streak = { n: 3, last: td, best: 3, freeze: 0 }; state.wheel = { last: '', spins: 0 };
+        const due1 = wheelDue();
+        state.wheel.last = td; const due2 = wheelDue();
+        state.wheel.last = ''; state.streak.n = 1; const due3 = wheelDue();
+        state.streak = { n: 2, last: '2000-01-01', best: 2, freeze: 0 }; const due4 = wheelDue();
+        ok(due1 && !due2 && !due3 && !due4, '連續學習轉盤：昨天有學習、今天學習過才出現，一天一次；連續 1 天（昨天沒學）不出現');
+        ok(window.PuppyWheel && PuppyWheel.starsFor(1) === 1 && PuppyWheel.starsFor(3) === 3 && PuppyWheel.starsFor(30) === 7 && PuppyWheel.PRIZES.length === 8,
+          '轉盤獎勵固定：連續 N 天 +N⭐、最多 +7⭐；8 格都是表演（價值一樣）');
+        state.streak = JSON.parse(st0); state.wheel = JSON.parse(w0);
       }
       // v3.12.0 SEL 心情小站
       if (window.PuppySEL) {

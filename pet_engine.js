@@ -1859,6 +1859,8 @@
       else if (kind === 'sad') { d.setState('lie', 3.0); playTone('growl'); }
       else if (kind === 'angry') { d.setState('angry', 3.0); playTone('growl'); }
       else if (kind === 'pat') { d.emitHeart(); d.emitHeart(); d.setState('happy', 2.8); playTone('yip'); }
+      else if (kind === 'flip') { d.command('play_paws', true); d.emitHeart(); }   // v3.13.0 轉盤表演
+      else if (kind === 'sing') { d.command('bark', true); }
     },
     throwToy(kind = 'ball') {
       if (!world.dog) return;
