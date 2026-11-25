@@ -55,7 +55,11 @@
     return r.json();
   };
   const ERR = {
-    not_teacher: '⚠️ 這個信箱不在試算表的「老師名單」上。請管理者在 taiwan77 的試算表「老師名單」A 欄加上這個信箱。',
+    not_teacher: '⚠️ 這個信箱還不是老師。請填老師邀請碼，或不填邀請碼直接按「寄驗證碼」送出申請。',
+    requested: '📨 已經送出申請！管理者核准後，你會收到通知信，到時候再回來按「寄驗證碼」。（有老師邀請碼的話，填上就不用等）',
+    pending: '⏳ 你的申請還在等管理者核准，核准後會收到通知信。（有老師邀請碼的話，填上就不用等）',
+    bad_invite: '⚠️ 老師邀請碼不對。請再問一次給你邀請碼的老師；或把邀請碼清空，直接送出申請。',
+    req_busy: '⚠️ 今天的申請太多了，請明天再試，或請管理者直接把你加進名單。',
     bad_email: '⚠️ 信箱格式不對', bad_code: '⚠️ 驗證碼不對', expired: '⚠️ 驗證碼過期或試太多次了，請重新寄一封',
     wait: '⚠️ 剛剛才寄過，請等一分鐘', too_many: '⚠️ 這一小時寄太多封了，請晚一點再試', quota: '⚠️ 今天的信已經寄完了，請明天再試',
     auth: '⚠️ 這支手機的老師資料已經過期（可能在別支手機換過代碼）。請用信箱重新驗證。'
@@ -93,8 +97,12 @@
       el.innerHTML = `
         <div class="card">
           <h2>👍 老師蓋章：第一次設定</h2>
-          <p class="note">只有試算表「老師名單」上的信箱可以當老師。驗證一次就好，之後這支手機就能幫學生蓋章（不用網路）。</p>
-          <div class="row"><input id="tsMail" type="email" placeholder="老師的信箱" value="${esc(st.email || '')}" style="flex:1;min-width:200px;"><button id="tsSend">寄驗證碼</button></div>
+          <p class="note">驗證一次就好，之後這支手機就能幫學生蓋章（不用網路）。<br>
+            第一次使用：有<b>老師邀請碼</b>就填上，馬上可以用；沒有的話留空，按「寄驗證碼」會送出申請，等管理者核准。</p>
+          <div class="row"><input id="tsMail" type="email" placeholder="老師的信箱" value="${esc(st.email || '')}" style="flex:1;min-width:200px;"></div>
+          <div class="row"><input id="tsName" placeholder="稱呼（例如 林老師）" value="${esc(st.askName || '')}" maxlength="20" style="flex:1;min-width:160px;">
+            <input id="tsInvite" placeholder="老師邀請碼（有的話）" autocomplete="off" style="flex:1;min-width:140px;"></div>
+          <div class="row"><button id="tsSend">寄驗證碼</button></div>
           <div class="row" id="tsCodeRow" ${st.verifying ? '' : 'hidden'}><input id="tsCode" inputmode="numeric" maxlength="6" placeholder="信裡的 6 個數字" style="flex:1;"><button class="main" id="tsVerify">確認</button></div>
           <p class="warn" id="tsMsg" style="color:#7a5200;">${esc(msg)}</p>
           ${ready() ? '<div class="row"><button id="tsCancel">取消</button></div>' : ''}
@@ -179,10 +187,11 @@
   async function sendCode() {
     const email = $('tsMail').value.trim();
     if (!email) { setMsg('請先輸入信箱'); return; }
-    st.email = email.toLowerCase(); save();
+    st.email = email.toLowerCase(); st.askName = $('tsName').value.trim(); save();
+    const invite = $('tsInvite').value.trim();
     setMsg('⏳ 寄信中…');
     let r;
-    try { r = await api({ a: 'tSend', email }); } catch (e) { setMsg('📶 連不上雲端，請確認網路'); return; }
+    try { r = await api({ a: 'tSend', email, name: st.askName, invite }); } catch (e) { setMsg('📶 連不上雲端，請確認網路'); return; }
     if (!r.ok) { setMsg(ERR[r.err] || '⚠️ 雲端暫時不能用'); return; }
     st.verifying = true; save();
     setMsg('📧 驗證碼寄出了！收件匣沒有就看「垃圾郵件」。');
