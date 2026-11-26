@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.13.0';
-  const APP_BUILD = '20261125-8';
+  const APP_VERSION = 'v3.13.1';
+  const APP_BUILD = '20261126-1';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
@@ -111,7 +111,6 @@
   const TOY_THROWS = 6;            // 買一次玩具，可以用手丟幾次
   const CHECKIN_XP = 3;            // 自我打卡每項的經驗值（重點放在連續天數，不讓「只打卡不學習」也能衝親密度）
   const CHECKIN_STAR_CAP = 4;
-  const CUSTOM_HABIT_MAX = 2;      // 家長自己加的好習慣最多 2 項
   const REVIEW_STAR_TIMES = 3;     // 每天前 3 次複習有星星，之後只有經驗值
   // v3.4.0 家長蓋章（規則和桌面版 study_checkin.py 一樣，驗證碼算法在 stamp.js）
   const STAMP_STARS = 3;
@@ -1680,7 +1679,8 @@
   //  分頁 2：✅ 自我打卡（結合 SEL 誠實確認）
   // ════════════════════════════════════════════════════════════════════
   function allHabits() {
-    return [...DEFAULT_HABITS, ...(state.custom_habits || [])];
+    // v3.13.1：拿掉「請爸媽幫你加一項好習慣」（學生會自己加、刪掉再加，反覆賺星星）。舊存檔裡自己加的項目不再顯示、也不能打卡。
+    return DEFAULT_HABITS.slice();
   }
 
   // ── v3.4.0 家長蓋章 ──
@@ -2034,7 +2034,6 @@
     const habits = allHabits();
     const doneCount = habits.filter(h => todayChecks[h.id]).length;
     const starsToday = Math.min(CHECKIN_STAR_CAP, doneCount);
-    const customN = (state.custom_habits || []).length;
 
     wrap.innerHTML = `
       <div class="card-box">
@@ -2062,13 +2061,6 @@
             `;
           }).join('')}
         </div>
-
-        <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
-          ${customN < CUSTOM_HABIT_MAX
-            ? `<button class="btn btn-soft" id="btnAddHabit">➕ 請爸媽幫你加一項好習慣（還可以加 ${CUSTOM_HABIT_MAX - customN} 項）</button>`
-            : `<span class="section-sub" style="margin:0;">自己加的好習慣已經有 ${CUSTOM_HABIT_MAX} 項（上限）。</span>`}
-          ${customN ? '<button class="btn btn-soft" id="btnDelHabit">🗑 刪掉自己加的項目</button>' : ''}
-        </div>
       </div>
       ${teacherCardHtml()}
       ${parentCardHtml()}
@@ -2088,35 +2080,6 @@
       });
     });
 
-    const addBtn = document.getElementById('btnAddHabit');
-    if (addBtn) {
-      addBtn.addEventListener('click', () => {
-        if ((state.custom_habits || []).length >= CUSTOM_HABIT_MAX) return;
-        const title = prompt('請爸媽輸入要新增的好習慣（例如：練琴 15 分鐘、幫忙擺碗筷）：');
-        if (title && title.trim()) {
-          state.custom_habits = state.custom_habits || [];
-          state.custom_habits.push({
-            id: 'custom_' + Date.now(),
-            icon: '🌟',
-            title: title.trim().slice(0, 28)
-          });
-          saveState();
-          renderCheckinTab();
-        }
-      });
-    }
-    bindDelHabit();
-  }
-
-  function bindDelHabit() {
-    const del = document.getElementById('btnDelHabit');
-    if (!del) return;
-    del.addEventListener('click', () => {
-      if (!confirm('要刪掉自己加的好習慣項目嗎？（已經拿到的星星不會被收回）')) return;
-      state.custom_habits = [];
-      saveState();
-      renderCheckinTab();
-    });
   }
 
   function openHonestyModal(habit) {
@@ -2965,6 +2928,17 @@
         t.invalid = true;
         ok(!tsJoined(), '老師換了代碼（雲端說無效）：要重新加入');
         state.tstamp = normalizeData(defaultData()).tstamp; state.totals.teacher_stamps = 0; if (hadTyping) state.typing.who = { g: 0, c: 0, s: 0 }; else delete state.typing;
+      }
+      // v3.13.1 拿掉自己加好習慣
+      {
+        const c0 = state.custom_habits;
+        state.custom_habits = [{ id: 'custom_x', icon: '🌟', title: '舊存檔自己加的' }];
+        renderCheckinTab();
+        const tab = document.getElementById('tab-checkin');
+        ok(!document.getElementById('btnAddHabit') && !document.getElementById('btnDelHabit') && !tab.querySelector('[data-habit="custom_x"]')
+           && allHabits().length === DEFAULT_HABITS.length,
+          '打卡頁沒有「請爸媽幫你加一項好習慣」「刪掉自己加的項目」；舊存檔自己加的項目也不顯示、不能打卡');
+        state.custom_habits = c0;
       }
       // v3.13.0 連續學習轉盤
       {
