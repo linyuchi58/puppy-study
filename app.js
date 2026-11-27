@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.17.1';
-  const APP_BUILD = '20261127-6';
+  const APP_VERSION = 'v3.18.0';
+  const APP_BUILD = '20261127-7';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
@@ -3315,8 +3315,8 @@
         ok(J('', '8', '6', { v: MT.fr(4, 3) }).note === '答案還可以是 4/3，或是 1又1/3' && J('', '2', '4', { v: MT.fr(1, 2) }).note === '答案還可以是 1/2' && J('', '4', '4', q1).note === '答案還可以是 1' && !J('', '4', '3', { v: MT.fr(4, 3) }).note, '沒約分的提醒：同時給約分後的假分數和帶分數');
         ok(J('', '7', '', q73).skip && J('2', '5', '3', q73).skip && J('', '7', '0', q73).skip && J('', '7', '3', { v: MT.fr(7, 3), form: 'mixed' }).skip && J('2', '1', '3', { v: MT.fr(7, 3), form: 'improper' }).skip, '分數題：沒填分母、帶分數後面超過 1、分母 0、指定寫法不對，只提醒、不算答錯');
         let fbad = '';
-        MC.filter(c => c.g === 'frac').forEach(c => { for (let i = 0; i < 200 && !fbad; i++) { const q = c.gen(); if (q.fr && (!(q.v.n > 0) || !(q.v.d > 0) || MT.mixStr(q.v.n, q.v.d) !== (q.form === 'improper' ? MT.mixStr(q.v.n, q.v.d) : q.a) || /NaN|undefined|-/.test(q.q + q.a + q.hint))) fbad = c.id + '：' + q.q; } });
-        ok(!fbad && MC.filter(c => c.g === 'frac' && c.gen().fr).length >= 10, '分數題 10 門課，答案都是正的、算得對、沒有怪字' + (fbad ? '：' + fbad : ''));
+        MC.filter(c => c.g === 'frac' || c.g === 'frac2').forEach(c => { for (let i = 0; i < 200 && !fbad; i++) { const q = c.gen(); if (q.fr && (!(q.v.n > 0) || !(q.v.d > 0) || MT.mixStr(q.v.n, q.v.d) !== (q.form === 'improper' ? MT.mixStr(q.v.n, q.v.d) : q.a) || /NaN|undefined|-/.test(q.q + q.a + q.hint))) fbad = c.id + '：' + q.q; } });
+        ok(!fbad && MC.filter(c => c.g === 'frac' && c.gen().fr).length >= 10 && MC.filter(c => c.g === 'frac2' && c.gen().fr).length >= 10, '分數題 20 門課（加減 10、乘除四則 10），答案都是正的、算得對、沒有怪字' + (fbad ? '：' + fbad : ''));
         ok(/mc-fr/.test(MT.fracHtml('2又1/3 ＋ 1/4')) && (MT.fracHtml('2又1/3').match(/mc-fr"/g) || []).length === 1, '分數畫成上下排（帶分數只畫一個分數）');
         const mc = MT.data(); mc.prog = {}; mc.days = {};
         mc.prog.u13 = 3;                 // 精熟 5 年級的課

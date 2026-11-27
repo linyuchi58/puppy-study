@@ -1,4 +1,4 @@
-// 《汪汪小精靈 學習小伙伴》🧮 心算挑戰（v3.10.0；v3.17.0 分數題改上下排、可填帶分數）
+// 《汪汪小精靈 學習小伙伴》🧮 心算挑戰（v3.10.0；v3.17.0 分數題改上下排、可填帶分數；v3.18.0 分數四則）
 // 參考老師的《星際防禦：心算雷射戰 v2.0》的出題規則和「💡 思考提示」，改成自己挑課程的自我挑戰：
 //   ・課程地圖：依台灣國小數學（108 課綱）整理，可以自由挑課程
 //   ・一回 10 題、計時；答錯會出現 💡 提示，再答一次
@@ -66,6 +66,35 @@
     if (op === '-' && fv(A) < fv(B)) { const t = A; A = B; B = t; }
     return fracQ([A, B], [op], hintFn(A, B, op));
   }
+  // ── v3.18.0：分數四則（乘除、括號、先乘除後加減）──
+  const fMul = (x, y) => fr(x.n * y.n, x.d * y.d);
+  const fDiv = (x, y) => fr(x.n * y.d, x.d * y.n);
+  const OPS = { '+': [fAdd, ' ＋ '], '-': [fSub, ' － '], '*': [fMul, ' × '], '/': [fDiv, ' ÷ '] };
+  const E = (op, l, r, p) => ({ op, l, r, p: !!p });          // p＝加括號
+  function evalE(e) {               // 每一步都要是正的，不然回傳 null
+    if (!e.op) return fr(e.n, e.d);
+    const a = evalE(e.l), b = evalE(e.r);
+    if (!a || !b) return null;
+    const v = OPS[e.op][0](a, b);
+    return v.n > 0 ? v : null;
+  }
+  function textE(e) { if (!e.op) return term(e); const t = textE(e.l) + OPS[e.op][1] + textE(e.r); return e.p ? '（' + t + '）' : t; }
+  function exprQ(e, hint, maxN, maxD) {
+    const v = evalE(e);
+    if (!v || v.n > (maxN || 150) || v.d > (maxD || 60)) return null;
+    return { q: textE(e) + ' ＝ ？', a: mixStr(v.n, v.d), fr: true, v, hint: typeof hint === 'function' ? hint(e) : hint };
+  }
+  function retryQ(gen) { for (let i = 0; i < 500; i++) { const q = gen(); if (q) return q; } return exprQ(E('*', T('p', 1, 2), T('w', 4, 1)), '分子乘整數，分母不變'); }
+  // 隨機的一項
+  const rP = (dmax, ds) => { const d = ds ? pick(ds) : R(2, dmax); return T('p', R(1, d - 1), d); };
+  const rM = (dmax, ds) => { const d = ds ? pick(ds) : R(2, dmax); return Mx(R(1, 3), R(1, d - 1), d); };
+  const rI = (lo, hi) => T('w', R(lo || 2, hi || 9), 1);
+  const rImp = (dmax, ds) => { const d = ds ? pick(ds) : R(2, dmax); return T('i', until(() => R(d + 1, 3 * d - 1), n => n % d !== 0), d); };
+  const rAny = (ds, kinds) => { const k = pick(kinds); return k === 'p' ? rP(0, ds) : k === 'm' ? rM(0, ds) : k === 'i' ? rImp(0, ds) : rI(2, 6); };
+  const FAM = [[2, 4, 8], [2, 3, 6], [3, 6, 9], [2, 5, 10], [2, 3, 4, 6], [3, 4, 6, 12]];
+  const rec = t => (t.k === 'w' ? `1/${t.n}` : `${t.d}/${t.n}`);  // 倒數（帶分數先化成假分數）
+  const HINT_MUL = '分子乘分子、分母乘分母；可以先交叉約分，比較好算';
+  const HINT_ORDER = '先算括號裡面，再算乘除，最後算加減（同一級從左到右）';
   function fracHtml(s) {           // 文字裡的分數 → 上下排
     const st = (n, d) => `<span class="mc-fr"><span>${n}</span><span>${d}</span></span>`;
     return esc(s).replace(/(\d+)又(\d+)\/(\d+)/g, (_, w, n, d) => `<span class="mc-mix">${w}${st(n, d)}</span>`).replace(/(\d+)\/(\d+)/g, (_, n, d) => st(n, d));
@@ -153,7 +182,7 @@
   // id 不要改（進度用 id 存）；t＝三顆星每題平均秒數
   const GROUPS = [
     ['add', '➕ 加法'], ['sub', '➖ 減法'], ['mul', '✖️ 乘法'], ['div', '➗ 除法'],
-    ['mix', '🧩 綜合與巧算'], ['num', '🔢 大數與概數'], ['frac', '🍰 分數、小數、百分率'],
+    ['mix', '🧩 綜合與巧算'], ['num', '🔢 大數與概數'], ['frac', '🍰 分數、小數、百分率'], ['frac2', '✖️ 分數乘除、四則運算'],
     ['unit', '📏 量與實測（單位換算）'], ['adv', '🎓 高年級挑戰']
   ];
   const COURSES = [
@@ -210,6 +239,16 @@
     { id: 'f13', g: 'frac', name: '異分母加減（要找公倍數通分）', gr: 5, t: 18, gen: () => { const [d1, d2] = twoDen('gen', 40); return twoTermQ(T('p', R(1, d1 - 1), d1), T('p', R(1, d2 - 1), d2), (A, B, op) => tfHint(A, B, op)); } },
     { id: 'f14', g: 'frac', name: '異分母帶分數加減', gr: 5, t: 25, gen: () => { const [d1, d2] = until(() => twoDen(R(0, 1) ? 'mul' : 'gen', 24), ([a, b]) => lcm(a, b) <= 24); return twoTermQ(Mx(R(1, 5), R(1, d1 - 1), d1), Mx(R(0, 4), R(1, d2 - 1), d2), (A, B, op) => tfHint(A, B, op, mixHint(op))); } },
     { id: 'f15', g: 'frac', name: '分數加減綜合（帶分數、假分數、三個數）', gr: 6, t: 30, gen: () => until(() => { const ds = pick([[2, 4, 8], [2, 3, 6, 12], [2, 5, 10], [3, 6, 9], [2, 3, 4, 6]]); const mk = () => { const d = pick(ds), k = pick(['p', 'i', 'm']); if (k === 'p') return T('p', R(1, d - 1), d); if (k === 'i') return T('i', until(() => R(d + 1, 3 * d - 1), n => n % d !== 0), d); return Mx(R(1, 3), R(1, d - 1), d); }; const ts = [mk(), mk(), mk()], ops = [pick(['+', '-']), pick(['+', '-'])]; const L = ts.reduce((l, t) => lcm(l, t.d), 1); const v1 = ops[0] === '+' ? fv(ts[0]) + fv(ts[1]) : fv(ts[0]) - fv(ts[1]); const v2 = ops[1] === '+' ? v1 + fv(ts[2]) : v1 - fv(ts[2]); const q = fracQ(ts, ops, `從左到右算。先通分成分母 ${L}：${ts.map(t => termAt(t, L)).join('、')}；帶分數可以先化成假分數再算`); q._ok = v1 > 1e-9 && v2 > 1e-9 && new Set(ts.map(t => t.d)).size > 1; return q; }, q => q._ok) },
+    { id: 'f16', g: 'frac2', name: '分數×整數', gr: 5, t: 10, gen: () => retryQ(() => { const A = R(0, 3) ? rP(12) : rM(6), B = rI(2, 9); return exprQ(R(0, 1) ? E('*', A, B) : E('*', B, A), A.k === 'm' ? '帶分數先化成假分數，分子乘整數，分母不變（可以先約分）' : '分子乘整數，分母不變（可以先和分母約分）', 80, 12); }) },
+    { id: 'f17', g: 'frac2', name: '分數×分數', gr: 5, t: 12, gen: () => retryQ(() => exprQ(E('*', rP(9), rP(9)), HINT_MUL, 80, 60)) },
+    { id: 'f18', g: 'frac2', name: '帶分數、假分數的乘法', gr: 5, t: 18, gen: () => retryQ(() => { const A = R(0, 1) ? rM(6) : rImp(6), B = pick([rP(9), rM(5), rImp(5)]); return exprQ(E('*', A, B), '先把帶分數化成假分數，再' + HINT_MUL, 120, 40); }) },
+    { id: 'f19', g: 'frac2', name: '分數÷整數、整數÷分數', gr: 6, t: 12, gen: () => retryQ(() => { if (R(0, 1)) { const A = R(0, 2) ? rP(9) : rM(5), B = rI(2, 9); return exprQ(E('/', A, B), `除以 ${B.n} 就是乘以 1/${B.n}：分母乘 ${B.n}，再看能不能約分`, 80, 60); } const A = rI(2, 9), B = rP(9); return exprQ(E('/', A, B), `除以一個分數，等於乘以它的倒數：${A.n} × ${rec(B)}`, 80, 12); }) },
+    { id: 'f20', g: 'frac2', name: '分數÷分數', gr: 6, t: 15, gen: () => retryQ(() => { const A = rP(9), B = rP(9); return exprQ(E('/', A, B), `除以一個分數，等於乘以它的倒數：${term(A)} × ${rec(B)}`, 80, 60); }) },
+    { id: 'f21', g: 'frac2', name: '帶分數、假分數的除法', gr: 6, t: 20, gen: () => retryQ(() => { const A = pick([rM(6), rImp(6), rP(9)]), B = A.k === 'p' ? rM(4) : pick([rP(9), rM(4), rImp(5)]); return exprQ(E('/', A, B), `先把帶分數化成假分數，再乘以除數的倒數 ${rec(B)}`, 120, 40); }) },
+    { id: 'f22', g: 'frac2', name: '分數乘除混合（三個數）', gr: 6, t: 25, gen: () => retryQ(() => { const k = ['p', 'p', 'm', 'w'], D = [2, 3, 4, 5, 6, 8, 9]; const a = rAny(D, ['p', 'p', 'm']), b = rAny(D, k), c = rAny(D, k); const ops = [pick(['*', '/']), pick(['*', '/'])]; if (ops[0] === '*' && ops[1] === '*') ops[R(0, 1)] = '/'; return exprQ(E(ops[1], E(ops[0], a, b), c), '帶分數先化成假分數；除以一個數就是乘以它的倒數，全部變成乘法再一起約分', 120, 40); }) },
+    { id: 'f23', g: 'frac2', name: '分數加減混合（有括號）', gr: 5, t: 25, gen: () => retryQ(() => { const ds = pick(FAM), k = ['p', 'p', 'm', 'i'], a = rAny(ds, k), b = rAny(ds, k), c = rAny(ds, k); const t = R(0, 3); const e = t === 0 ? E('-', a, E('+', b, c, 1)) : t === 1 ? E('+', a, E('-', b, c, 1)) : t === 2 ? E('-', a, E('-', b, c, 1)) : E('-', E('+', a, b, 1), c); return exprQ(e, '先算括號裡面；減掉一個括號，也可以把括號裡的數一個一個減（括號裡的＋、－要變號）', 150, 24); }) },
+    { id: 'f24', g: 'frac2', name: '分數四則（先乘除、後加減）', gr: 6, t: 28, gen: () => retryQ(() => { const ds = pick(FAM), a = rAny(ds, ['p', 'm']), b = rAny(ds, ['p', 'p', 'w']), c = rAny(ds, ['p', 'w', 'm']); const t = R(0, 4); const e = t === 0 ? E('+', a, E('*', b, c)) : t === 1 ? E('-', a, E('*', b, c)) : t === 2 ? E('+', E('*', b, c), a) : t === 3 ? E('-', a, E('/', b, c)) : E('+', E('/', b, c), a); return exprQ(e, HINT_ORDER, 150, 36); }) },
+    { id: 'f25', g: 'frac2', name: '分數四則（有括號）', gr: 6, t: 32, gen: () => retryQ(() => { const ds = pick(FAM), a = rAny(ds, ['p', 'm']), b = rAny(ds, ['p', 'm', 'i']), c = rAny(ds, ['p', 'w', 'p']); const t = R(0, 4); const e = t === 0 ? E('*', E('+', a, b, 1), c) : t === 1 ? E('*', c, E('-', a, b, 1)) : t === 2 ? E('/', E('-', a, b, 1), c) : t === 3 ? E('/', a, E('+', b, c, 1)) : E('-', E('*', E('+', a, b, 1), c), rP(0, ds)); return exprQ(e, HINT_ORDER, 150, 36); }) },
     { id: 'f2', g: 'frac', name: '分數化小數（分母 2、4、5、10、100）', gr: 4, t: 5, gen: () => pick([[1, 2], [1, 4], [3, 4], [1, 5], [2, 5], [3, 5], [4, 5], [1, 10], [3, 10], [7, 10], [9, 10], [7, 100], [25, 100], [43, 100]]).reduce((n, d) => ({ q: `${n}/${d} ＝ □（用小數）`, a: fmt(n / d), hint: d === 10 || d === 100 ? `分母 ${d}：${n} 個 ${d === 10 ? '0.1' : '0.01'}` : `把分母變成 10 或 100：${n}/${d} ＝ ${n * (100 / d) % 10 === 0 ? n * (10 / d) + '/10' : n * (100 / d) + '/100'}` })) },
     { id: 'f3', g: 'frac', name: '一位小數加減', gr: 4, t: 6, gen: () => { const a = R(11, 69), b = R(11, 59); if (R(0, 1)) return { q: `${fmt(a / 10)} ＋ ${fmt(b / 10)} ＝ ？`, a: fmt((a + b) / 10), hint: `當成 ${a} ＋ ${b} ＝ ${a + b}，再點上小數點` }; const big = Math.max(a, b) + 12, small = Math.min(a, b); return { q: `${fmt(big / 10)} － ${fmt(small / 10)} ＝ ？`, a: fmt((big - small) / 10), hint: `當成 ${big} － ${small} ＝ ${big - small}，再點上小數點` }; } },
     { id: 'f4', g: 'frac', name: '小數×整數', gr: 5, t: 6, gen: () => { const a = pick([0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 1.2, 1.5, 2.5, 0.25]), b = R(2, 9); return { q: `${a} × ${b} ＝ ？`, a: fmt(a * b), hint: `先當整數算：${String(a).replace('0.', '').replace('.', '')} × ${b}，再點上小數點（${String(a).split('.')[1].length} 位小數）` }; } },
