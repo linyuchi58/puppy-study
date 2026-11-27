@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.15.1';
-  const APP_BUILD = '20261127-3';
+  const APP_VERSION = 'v3.16.0';
+  const APP_BUILD = '20261127-4';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
@@ -3337,6 +3337,30 @@
         PZ.reward(L.c4, 300, 200); const r3 = PZ.reward(L.c3, 200, 150), r4 = PZ.reward(L.c3, 200, 150);
         ok(r3.stars === 6 && r3.xp === 26 && r4.stars === 6 && r4.xp === 0 && PZ.today().xp === PZ.DAY_XP_CAP, '益智挑戰經驗值一天最多 ' + PZ.DAY_XP_CAP + '（星星照給）');
         pd.days = {}; pd.wins = {}; pd.best = {}; pd.bestm = {};
+      }
+      // v3.16.0：七巧板每一題都拼得出來；五子棋會贏、會擋
+      if (window.PuppyTangram && window.PuppyPuzzle) {
+        const TG = window.PuppyTangram._t, bad = [];
+        window.PuppyTangram.LEVELS.forEach(l => {
+          TG.start(l.id);
+          const before = TG.isSolved();
+          TG.solveAll();
+          if (before || !TG.isSolved()) bad.push(l.short);
+        });
+        TG.start(window.PuppyTangram.LEVELS[0].id);
+        TG.solveAll(); TG.play().pieces[6].x += 1;
+        const off = TG.isSolved();
+        window.PuppyPuzzle.ctx.back();
+        ok(window.PuppyTangram.LEVELS.length >= 12 && !bad.length && !off, '七巧板 ' + window.PuppyTangram.LEVELS.length + ' 題：照答案擺就過關、一開始和放歪都不算' + (bad.length ? '：' + bad.join('、') : ''));
+      }
+      if (window.PuppyGomoku) {
+        const GK = window.PuppyGomoku._t, N = GK.N, b = new Array(N * N).fill(0), ix = (x, y) => y * N + x;
+        [2, 3, 4, 5].forEach(x => { b[ix(x, 6)] = 1; });
+        const block = GK.aiMove(b.slice(), 2, 'normal');
+        const b2 = b.slice(); [2, 3, 4, 5].forEach(x => { b2[ix(x, 6)] = 2; });
+        const win = GK.aiMove(b2, 2, 'hard');
+        const b3 = new Array(N * N).fill(0); [0, 1, 2, 3, 4].forEach(k => { b3[ix(3 + k, 2 + k)] = 1; });
+        ok((block === ix(1, 6) || block === ix(6, 6)) && (win === ix(1, 6) || win === ix(6, 6)) && GK.fiveAt(b3, ix(5, 4)) && !GK.fiveAt(b, ix(2, 6)), '五子棋：斜線連 5 顆算贏、4 顆不算；狗狗會擋你的四顆、自己有四顆會直接贏');
       }
       // v3.9.4：不適合國小的字已從詞庫拿掉
       { const ws = new Set(((window.VOCAB_CEEC && window.VOCAB_CEEC.words) || []).map(w => String(w.s || '').toLowerCase()));

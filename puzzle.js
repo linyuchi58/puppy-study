@@ -147,7 +147,10 @@
   // ════════════════════════════════════════════════════════════════════
   //  畫面狀態
   // ════════════════════════════════════════════════════════════════════
-  let view = 'home';           // home｜play
+  let view = 'home';           // home｜play（魔術方塊）｜sub（七巧板、五子棋自己畫畫面）
+  let sub = null;              // view === 'sub' 時正在玩的遊戲模組
+  let hub = 'cube';            // 首頁選了哪一個遊戲：cube｜tangram｜gomoku
+  try { hub = localStorage.getItem('puppy_puzzle_hub') || 'cube'; } catch (e) { /* 忽略 */ }
   let game = null;             // { lv（挑戰關卡，練習時 null）, n, cube, moves, undo:[], started, scrambling, solved, result }
   let rx = -28, ry = -38;      // 看方塊的角度
   let busy = false;            // 正在播放轉動動畫
@@ -176,6 +179,9 @@
       <div class="card-box pz-home">
         <div class="section-title"><span>🧩 益智挑戰</span><span class="ty-today-pill">今天益智經驗值 ${d.xp || 0}／${DAY_XP_CAP}</span></div>
         <p class="section-sub">動動腦、練空間感！過關就有星星和經驗值。每一關每天可以領的次數有限，領完還是可以玩、刷新自己的紀錄。</p>
+        ${hubHtml()}
+        ${hub !== 'cube' && subMod(hub) ? '<div id="pzSubHome"></div></div>' : ''}
+        ${hub !== 'cube' && subMod(hub) ? '' : `
         <h3 class="pz-h3">🟥 魔術方塊</h3>
         <p class="section-sub" style="margin-top:0;">把打亂的方塊轉回<b>六面同色</b>。新手先從「暖身」開始：看清楚怎麼打亂的，<b>倒著轉回去</b>就過關了！</p>
         <div class="pz-levels">${LEVELS.map(card).join('')}</div>
@@ -197,7 +203,18 @@
           </ol>
           <p class="section-sub">每一步都有固定的「轉法口訣」，可以請老師或家人一起查「魔術方塊 新手解法」。中心塊不會動，<b>中心是什麼顏色，那一面就是什麼顏色</b>。</p>
         </details>
-      </div>`;
+      </div>`}`;
+  }
+  const HUBS = [
+    { id: 'cube', ico: '🟥', name: '魔術方塊', sub: '轉回六面同色' },
+    { id: 'tangram', ico: '🔺', name: '七巧板', sub: '7 片拼出圖形' },
+    { id: 'gomoku', ico: '⚫', name: '五子棋', sub: '先連成 5 顆就贏' }
+  ];
+  function subMod(id) { return id === 'tangram' ? window.PuppyTangram : id === 'gomoku' ? window.PuppyGomoku : null; }
+  function hubHtml() {
+    const list = HUBS.filter(h => h.id === 'cube' || subMod(h.id));
+    if (list.length < 2) return '';
+    return `<div class="pz-hub">${list.map(h => `<button class="pz-hub-btn${hub === h.id ? ' on' : ''}" data-hub="${h.id}"><span class="pz-hub-ico">${h.ico}</span><b>${h.name}</b><small>${h.sub}</small></button>`).join('')}</div>`;
   }
 
   function playHtml() {
@@ -233,8 +250,10 @@
   function render() {
     if (!pane) return;
     stopDrag();
-    document.body.classList.toggle('pz-playing', view === 'play' && !!game);   // 手機上玩方塊時先收起狗狗那一欄
-    if (view === 'play' && game) {
+    document.body.classList.toggle('pz-playing', (view === 'play' && !!game) || (view === 'sub' && !!sub));   // 手機上玩的時候先收起狗狗那一欄
+    if (view === 'sub' && sub) {
+      sub.render();
+    } else if (view === 'play' && game) {
       pane.innerHTML = playHtml();
       buildScene();
       bindPlay();
@@ -246,6 +265,13 @@
       pane.innerHTML = homeHtml();
       pane.querySelectorAll('[data-lv]').forEach(b => b.addEventListener('click', () => startLevel(b.dataset.lv)));
       pane.querySelectorAll('[data-practice]').forEach(b => b.addEventListener('click', () => startPractice(+b.dataset.practice)));
+      pane.querySelectorAll('[data-hub]').forEach(b => b.addEventListener('click', () => {
+        hub = b.dataset.hub;
+        try { localStorage.setItem('puppy_puzzle_hub', hub); } catch (e) { /* 忽略 */ }
+        render();
+      }));
+      const sh = pane.querySelector('#pzSubHome'), m = subMod(hub);
+      if (sh && m) m.home(sh);
     }
     try { if (api && api.focus) api.focus(); } catch (e) { /* 忽略 */ }
   }
@@ -546,10 +572,35 @@
   }
   function stopDrag() { drag = null; }
 
+  const ctx = {
+    get pane() { return pane; },
+    esc, fmtTime,
+    // 過關：照關卡（id、name、stars、xp、per）算獎勵、存檔、給星星，回傳結果
+    grant(lv, sec, moves) {
+      const r = reward(lv, sec, moves);
+      api.save();
+      if (r.stars > 0 || r.xp > 0) api.award(r.xp, r.stars, 'puzzle', `益智挑戰：${lv.name}`);
+      else if (api.petSay) api.petSay(`🎉 ${lv.name}過關！`);
+      return r;
+    },
+    dayLeft(lv) { const d = today(); return Math.max(0, lv.per - ((d.wins && d.wins[lv.id]) || 0)); },
+    wins(id) { return data().wins[id] || 0; },
+    best(id) { return data().best[id] || 0; },
+    enter(mod) {
+      sub = mod; view = 'sub';
+      document.body.classList.add('pz-playing');
+      try { if (pane.getBoundingClientRect().top < 0) pane.scrollIntoView({ block: 'start' }); } catch (e) { /* 忽略 */ }
+    },
+    back() { sub = null; view = 'home'; render(); },
+    focus() { try { if (api && api.focus) api.focus(); } catch (e) { /* 忽略 */ } },
+    petSay(msg) { try { if (api && api.petSay) api.petSay(msg); } catch (e) { /* 忽略 */ } }
+  };
+
   window.PuppyPuzzle = {
-    isPlaying() { return view === 'play' && !!game && !game.solved; },
+    isPlaying() { return (view === 'play' && !!game && !game.solved) || (view === 'sub' && !!sub && !!sub.isPlaying()); },
     mount(el, hooks) {
       pane = el; api = hooks;
+      [window.PuppyTangram, window.PuppyGomoku].forEach(m => { if (m && m.attach) m.attach(ctx); });
       if (!ticker) ticker = setInterval(() => { if (view === 'play' && game && game.started && !game.solved && pane && pane.getClientRects().length) paintStats(); }, 500);
       window.addEventListener('resize', () => {
         clearTimeout(resizeT);
@@ -557,8 +608,9 @@
       });
     },
     show() { render(); },
-    hide() { stopDrag(); document.body.classList.remove('pz-playing'); },
+    hide() { stopDrag(); if (sub && sub.hide) sub.hide(); document.body.classList.remove('pz-playing'); },
     LEVELS,
-    _t: { makeCube, turn, isSolved, scrambleMoves, reward, data, today, BY_ID, DAY_XP_CAP, pickTurn, startLevel, startPractice, game: () => game, view: () => view, afterMove, rotM, faceIndex, mulMV, setView: (x, y) => { rx = x; ry = y; paintView(); } }
+    ctx,
+    _t: { setHub: h => { hub = h; }, sub: () => sub, makeCube, turn, isSolved, scrambleMoves, reward, data, today, BY_ID, DAY_XP_CAP, pickTurn, startLevel, startPractice, game: () => game, view: () => view, afterMove, rotM, faceIndex, mulMV, setView: (x, y) => { rx = x; ry = y; paintView(); } }
   };
 })();
