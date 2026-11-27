@@ -144,6 +144,7 @@
       s.pets.current = pid;
       api.save();
       say(`${row[1]} 我是${row[2]}！一起開心地學習吧！`, 'happy');
+      if (pi() && pi().react) pi().react('pat');
       return true;
     }
     return false;

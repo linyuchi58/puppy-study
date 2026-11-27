@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.15.0';
-  const APP_BUILD = '20261127-2';
+  const APP_VERSION = 'v3.15.1';
+  const APP_BUILD = '20261127-3';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
@@ -29,9 +29,9 @@
   const DOG_COAT = {
     '威爾斯柯基': ['#e3893b', '#fffaf2'],
     '黑頭三色柯基': ['#383532', '#fffaf2'],
-    '奶油柯基': ['#ecc27e', '#ffffff'],
-    '柴犬': ['#d4793a', '#f7ead6'],
-    '米格魯': ['#d99a52', '#f6efe2'],
+    '奶油柯基': ['#f3d9a4', '#ffffff'],
+    '柴犬': ['#cf5f2a', '#fbf1e3'],
+    '米格魯': ['#c88644', '#ffffff'],
     '哈士奇': ['#8a8f99', '#f2f2f2'],
     '大麥町': ['#f4f1ea', '#ffffff'],
     '巧克力拉布拉多': ['#7b4a2a', '#a8714a']
@@ -994,12 +994,15 @@
     if (pid.startsWith('dog:')) {
       const breed = pid.slice(4);
       const [coat, belly] = DOG_COAT[breed] || ['#e3893b', '#fffaf2'];
+      // v3.15.1：品種特徵（和走動的狗狗 pet_engine.js 一樣）：垂耳、小耳、白臉、眉毛、白鼻樑
+      const FLOP_EAR = { '米格魯': '#5b3a1e', '大麥町': '#2b2b2b', '巧克力拉布拉多': '#5a321a' };
+      const earK = breed === '柴犬' ? 0.72 : 1;
 
       // 耳朵
-      [-1, 1].forEach(s => {
+      if (!FLOP_EAR[breed]) [-1, 1].forEach(s => {
         ctx.beginPath();
         ctx.moveTo(cx + s * r * 0.75, cy - r * 0.25);
-        ctx.lineTo(cx + s * r * 0.55, cy - r * 1.05);
+        ctx.lineTo(cx + s * r * (0.45 + 0.1 * earK), cy - r * (0.25 + 0.8 * earK));
         ctx.lineTo(cx + s * r * 0.15, cy - r * 0.55);
         ctx.closePath();
         ctx.fillStyle = coat;
@@ -1010,7 +1013,7 @@
 
         ctx.beginPath();
         ctx.moveTo(cx + s * r * 0.62, cy - r * 0.38);
-        ctx.lineTo(cx + s * r * 0.52, cy - r * 0.85);
+        ctx.lineTo(cx + s * r * (0.45 + 0.07 * earK), cy - r * (0.38 + 0.47 * earK));
         ctx.lineTo(cx + s * r * 0.28, cy - r * 0.55);
         ctx.closePath();
         ctx.fillStyle = '#f6c7b0';
@@ -1026,10 +1029,49 @@
       ctx.strokeStyle = '#4a3b32';
       ctx.stroke();
 
+      if (breed === '哈士奇') {   // 白色臉
+        ctx.beginPath();
+        ctx.ellipse(cx, cy + r * 0.12, r * 0.62, r * 0.42, 0, 0, Math.PI * 2);
+        ctx.fillStyle = '#f7f7f7';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(cx - r * 0.14, cy - r * 0.62); ctx.lineTo(cx, cy - r * 0.18); ctx.lineTo(cx + r * 0.14, cy - r * 0.62);
+        ctx.fillStyle = coat;
+        ctx.fill();
+      }
+      if (breed === '米格魯') {   // 白鼻樑
+        ctx.beginPath();
+        ctx.ellipse(cx, cy - r * 0.2, r * 0.1, r * 0.4, 0, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+      }
       ctx.beginPath();
       ctx.ellipse(cx, cy + r * 0.28, r * 0.46, r * 0.38, 0, 0, Math.PI * 2);
       ctx.fillStyle = belly;
       ctx.fill();
+      if (breed === '黑頭三色柯基') {   // 棕色眉毛
+        [-1, 1].forEach(s => {
+          ctx.beginPath();
+          ctx.ellipse(cx + s * r * 0.3, cy - r * 0.24, r * 0.1, r * 0.06, 0, 0, Math.PI * 2);
+          ctx.fillStyle = '#c87228';
+          ctx.fill();
+        });
+      }
+      if (FLOP_EAR[breed]) {   // 垂下來的耳朵
+        [-1, 1].forEach(s => {
+          ctx.save();
+          ctx.translate(cx + s * r * 0.78, cy + r * 0.02);
+          ctx.rotate(s * 0.28);
+          ctx.beginPath();
+          ctx.ellipse(0, 0, r * 0.24, r * 0.5, 0, 0, Math.PI * 2);
+          ctx.fillStyle = FLOP_EAR[breed];
+          ctx.fill();
+          ctx.lineWidth = 2.5;
+          ctx.strokeStyle = '#4a3b32';
+          ctx.stroke();
+          ctx.restore();
+        });
+      }
 
       // 大麥町斑點
       if (breed === '大麥町') {
@@ -2165,7 +2207,7 @@
             const isCurrent = pid === curPet;
             return `
               <div class="dex-card ${unlocked ? '' : 'locked'}">
-                <div style="font-size:2.3rem;">${unlocked ? icon : '🔒'}</div>
+                <div class="dex-pic-wrap"><canvas class="dex-pic ${unlocked ? '' : 'dex-pic-locked'}" data-pic="${pid}" width="160" height="128" aria-label="${unlocked ? name : '還沒解鎖'}"></canvas>${unlocked ? '' : '<span class="dex-pic-lock">🔒</span>'}</div>
                 <div style="font-weight:800;font-size:1.08rem;margin-top:4px;">${unlocked ? name : `？？？ (${name})`}</div>
                 <div style="font-size:0.86rem;color:var(--muted);margin:4px 0;">
                   拿手：${subj[0]} ${subj[1]}
@@ -2203,6 +2245,14 @@
       </div>
     `;
 
+    // v3.15.1：每一張卡片畫出那一隻的樣子（沒解鎖的是剪影）
+    wrap.querySelectorAll('canvas[data-pic]').forEach(cv => {
+      try {
+        const c = cv.getContext('2d');
+        c.clearRect(0, 0, cv.width, cv.height);
+        drawDogOnCanvas(c, cv.width / 2, cv.height / 2 + 10, 48, cv.dataset.pic, 'none', 'normal', 0);
+      } catch (e) { /* 忽略 */ }
+    });
     wrap.querySelectorAll('[data-use-pet]').forEach(btn => {
       btn.addEventListener('click', () => {
         const pid = btn.dataset.usePet;
@@ -2210,6 +2260,7 @@
         const row = PETS.find(x => x[0] === pid) || PETS[0];
         saveState();
         petSay(`${row[1]} 我是${row[2]}！一起開心地學習吧！`, 'happy');
+        if (window.PuppyInteractive) window.PuppyInteractive.react('pat');   // v3.15.1：走動的狗狗也跟著換，跳一下
         renderDexTab();
       });
     });

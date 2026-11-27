@@ -42,13 +42,17 @@
   const PALETTES = {
     '威爾斯柯基': { coat: '#e3893b', coat2: '#c86d22', belly: '#fffaf2', paw: '#fffaf2', nose: '#231610' },
     '黑頭三色柯基': { coat: '#383532', coat2: '#c87228', belly: '#fffaf2', paw: '#fffaf2', nose: '#181412' },
-    '奶油柯基': { coat: '#ecc27e', coat2: '#d49f4e', belly: '#ffffff', paw: '#ffffff', nose: '#2a1a12' },
-    '柴犬': { coat: '#d4793a', coat2: '#b25e25', belly: '#f7ead6', paw: '#f7ead6', nose: '#1f1410' },
-    '米格魯': { coat: '#d99a52', coat2: '#6b3f1d', belly: '#f6efe2', paw: '#f6efe2', nose: '#2a1a12' },
+    '奶油柯基': { coat: '#f3d9a4', coat2: '#e3b870', belly: '#ffffff', paw: '#ffffff', nose: '#2a1a12' },
+    '柴犬': { coat: '#cf5f2a', coat2: '#a8471c', belly: '#fbf1e3', paw: '#fbf1e3', nose: '#1f1410' },
+    '米格魯': { coat: '#c88644', coat2: '#5b3a1e', belly: '#ffffff', paw: '#ffffff', nose: '#2a1a12' },
     '哈士奇': { coat: '#8a8f99', coat2: '#3c4049', belly: '#f2f2f2', paw: '#f2f2f2', nose: '#151515' },
     '大麥町': { coat: '#f4f1ea', coat2: '#2b2b2b', belly: '#ffffff', paw: '#f4f1ea', nose: '#1a1a1a' },
     '巧克力拉布拉多': { coat: '#7b4a2a', coat2: '#4f2c16', belly: '#a8714a', paw: '#7b4a2a', nose: '#1e120c' }
   };
+
+  // v3.15.1：各品種的外型特徵（垂耳、小耳、黑背、白臉），讓每一隻一眼就看得出不同
+  const FLOP_EARS = new Set(['米格魯', '大麥町', '巧克力拉布拉多']);
+  const SMALL_EARS = new Set(['柴犬']);
 
   function shade(hex, factor) {
     const c = hex.replace('#', '');
@@ -1329,15 +1333,29 @@
     const [hx, hy] = dog.rendered.head;
     const eb = dog.ear_back_s || 0;
 
-    // 0. 遠側立耳
-    const feTip = [hx - d * (9 + 17 * eb) * S, hy - (36 - 17 * eb) * S];
-    ctx.beginPath();
-    ctx.moveTo(hx - d * 2 * S, hy - 14 * S);
-    ctx.lineTo(feTip[0], feTip[1]);
-    ctx.lineTo(hx - d * 10 * S, hy - 13 * S);
-    ctx.closePath();
-    ctx.fillStyle = shade(pal.coat2, 0.85);
-    ctx.fill();
+    const flop = FLOP_EARS.has(breed);
+    const earK = SMALL_EARS.has(breed) ? 0.68 : 1;
+    const drawFlop = (ox, col, far) => {
+      ctx.beginPath();
+      ctx.ellipse(hx - d * ox * S, hy - 2 * S, 7.5 * S, 15 * S, d * (0.35 + eb * 0.3), 0, TAU);
+      ctx.fillStyle = far ? shade(col, 0.82) : col;
+      ctx.fill();
+      if (!far) { ctx.strokeStyle = shade(col, 0.6); ctx.lineWidth = 1.4; ctx.stroke(); }
+    };
+
+    // 0. 遠側立耳（垂耳品種畫成垂下來的耳朵）
+    if (flop) {
+      drawFlop(2, pal.coat2, true);
+    } else {
+      const feTip = [hx - d * (9 + 17 * eb) * earK * S, hy - (14 + (22 - 17 * eb) * earK) * S];
+      ctx.beginPath();
+      ctx.moveTo(hx - d * 2 * S, hy - 14 * S);
+      ctx.lineTo(feTip[0], feTip[1]);
+      ctx.lineTo(hx - d * 10 * S, hy - 13 * S);
+      ctx.closePath();
+      ctx.fillStyle = shade(pal.coat2, 0.85);
+      ctx.fill();
+    }
 
     // 1. 外輪廓底層
     DRAW_ORDER.forEach(([name, r, ck]) => {
@@ -1382,6 +1400,20 @@
       if (FAR_SIDE.has(name)) col = shade(col, 0.84);
       drawSphere(ctx, x, y, rr, col);
 
+      // 米格魯黑色背鞍
+      if (breed === '米格魯' && ['hip', 'mid'].includes(name)) {
+        ctx.beginPath();
+        ctx.ellipse(x, y - rr * 0.35, rr * 0.85, rr * 0.55, 0, 0, TAU);
+        ctx.fillStyle = '#2e241d';
+        ctx.fill();
+      }
+      // 哈士奇白色臉（額頭到口鼻）
+      if (breed === '哈士奇' && name === 'forehead') {
+        ctx.beginPath();
+        ctx.ellipse(x + d * rr * 0.35, y + rr * 0.3, rr * 0.6, rr * 0.5, 0, 0, TAU);
+        ctx.fillStyle = '#f7f7f7';
+        ctx.fill();
+      }
       // 大麥町黑斑點
       if (breed === '大麥町' && ['hip', 'mid', 'chest', 'head'].includes(name)) {
         ctx.beginPath();
@@ -1423,8 +1455,10 @@
       }
     });
 
-    // 3. 近側柯基大立耳
-    const neTip = [hx - d * (5 + 20 * eb) * S, hy - (38 - 19 * eb) * S];
+    // 3. 近側柯基大立耳（垂耳品種畫成垂下來的耳朵）
+    const neTip = [hx - d * (5 + 20 * eb) * earK * S, hy - (14 + (24 - 19 * eb) * earK) * S];
+    if (flop) drawFlop(9, pal.coat2, false);
+    else {
     ctx.beginPath();
     ctx.moveTo(hx + d * 2 * S, hy - 14 * S);
     ctx.lineTo(neTip[0], neTip[1]);
@@ -1443,6 +1477,7 @@
     ctx.closePath();
     ctx.fillStyle = '#f8bbd0';
     ctx.fill();
+    }
 
     // 4. 變裝配件（博士帽、墨鏡、紅領巾、小皇冠）
     if (acc && acc !== 'none') {
