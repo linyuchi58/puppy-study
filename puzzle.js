@@ -208,9 +208,13 @@
   const HUBS = [
     { id: 'cube', ico: '🟥', name: '魔術方塊', sub: '轉回六面同色' },
     { id: 'tangram', ico: '🔺', name: '七巧板', sub: '7 片拼出圖形' },
-    { id: 'gomoku', ico: '⚫', name: '五子棋', sub: '先連成 5 顆就贏' }
+    { id: 'gomoku', ico: '⚫', name: '五子棋', sub: '先連成 5 顆就贏' },
+    { id: 'sudoku', ico: '🔢', name: '數獨', sub: '數字不重複' },
+    { id: 'slide', ico: '🔲', name: '數字華容道', sub: '滑回 1、2、3' },
+    { id: 'lever', ico: '⚖️', name: '槓桿天平', sub: '科學：讓它平衡' }
   ];
-  function subMod(id) { return id === 'tangram' ? window.PuppyTangram : id === 'gomoku' ? window.PuppyGomoku : null; }
+  const SUBS = { tangram: 'PuppyTangram', gomoku: 'PuppyGomoku', sudoku: 'PuppySudoku', slide: 'PuppySlide', lever: 'PuppyLever' };
+  function subMod(id) { return SUBS[id] ? window[SUBS[id]] || null : null; }
   function hubHtml() {
     const list = HUBS.filter(h => h.id === 'cube' || subMod(h.id));
     if (list.length < 2) return '';
@@ -600,7 +604,7 @@
     isPlaying() { return (view === 'play' && !!game && !game.solved) || (view === 'sub' && !!sub && !!sub.isPlaying()); },
     mount(el, hooks) {
       pane = el; api = hooks;
-      [window.PuppyTangram, window.PuppyGomoku].forEach(m => { if (m && m.attach) m.attach(ctx); });
+      Object.keys(SUBS).forEach(k => { const m = subMod(k); if (m && m.attach) m.attach(ctx); });
       if (!ticker) ticker = setInterval(() => { if (view === 'play' && game && game.started && !game.solved && pane && pane.getClientRects().length) paintStats(); }, 500);
       window.addEventListener('resize', () => {
         clearTimeout(resizeT);

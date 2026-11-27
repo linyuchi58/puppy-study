@@ -1242,3 +1242,45 @@ body.ty-exam .modal-backdrop { z-index: 600; }
 .pz-result.lose { background: #fff6ec; border-color: #f0c38f; }
 .pz-result.lose .pz-win { color: #c0570f; }
 @media (max-width: 560px) { .pz-hub { gap: 6px; } .pz-hub-btn small { display: none; } .pz-hub-btn b { font-size: .92rem; } }
+
+/* ── v3.19.0 益智挑戰：數獨、數字華容道、槓桿天平 ── */
+.sd-grid { --n: 9; display: grid; grid-template-columns: repeat(var(--n), 1fr); width: min(100%, 460px); aspect-ratio: 1; margin: 8px auto 0; border: 3px solid #4a3b2c; border-radius: 10px; overflow: hidden; background: #4a3b2c; gap: 1px; }
+.sd-cell { border: none; background: #fffdf8; font-family: inherit; font-size: clamp(1rem, 4.6vw, 1.6rem); font-weight: 800; color: #2f6fb5; cursor: pointer; padding: 0; }
+.sd-grid.n4 .sd-cell { font-size: clamp(1.4rem, 8vw, 2.4rem); }
+.sd-grid.n6 .sd-cell { font-size: clamp(1.2rem, 6vw, 2rem); }
+.sd-cell.given { color: #3a2c20; background: #f3ebe0; }
+.sd-cell.line { background: #fdf3e4; }
+.sd-cell.given.line { background: #ece0cf; }
+.sd-cell.same { background: #e3f0fd; }
+.sd-cell.sel { background: #ffd98a; }
+.sd-cell.bad { color: #d83a2a; background: #ffe1dc; }
+.sd-cell.br { margin-right: 2px; }
+.sd-cell.bb { margin-bottom: 2px; }
+.sd-pad { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 10px auto 0; max-width: 480px; }
+.sd-key { min-width: 44px; height: 48px; border-radius: 12px; border: 2px solid #e3d6c3; background: #fff; font-family: inherit; font-size: 1.3rem; font-weight: 900; color: #4a3b2c; cursor: pointer; }
+.sd-key:active { background: #ffd98a; }
+.sd-key.erase { color: #c0570f; }
+.sl-grid { --n: 4; display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 6px; width: min(100%, 420px); aspect-ratio: 1; margin: 8px auto 0; padding: 8px; border-radius: 18px; background: #6b5a4c; }
+.sl-tile { border: none; border-radius: 12px; font-family: inherit; font-weight: 900; font-size: clamp(1.2rem, 6vw, 2.2rem); color: #fff; cursor: pointer; background: hsl(var(--hue), 62%, 55%); box-shadow: inset 0 -4px 0 rgba(0, 0, 0, .18); touch-action: manipulation; }
+.sl-tile.ok { outline: 3px solid rgba(255, 255, 255, .8); outline-offset: -5px; }
+.sl-empty { border-radius: 12px; background: rgba(0, 0, 0, .18); }
+.lv-levels { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+.lv-board { display: block; width: 100%; max-width: 640px; margin: 8px auto 0; touch-action: none; user-select: none; -webkit-user-select: none; background: linear-gradient(#eaf6ff, #fffdf8); border-radius: 16px; border: 2px solid #eadfce; }
+.lv-beam { transition: transform .5s cubic-bezier(.3, 1.4, .5, 1); }
+.lv-bar { fill: #a0703f; }
+.lv-peg { stroke: #6b4a24; stroke-width: .5; }
+.lv-num { font-size: 3.4px; font-weight: 800; fill: #6b4a24; text-anchor: middle; }
+.lv-stand { fill: #8c7b6b; }
+.lv-pivot { fill: #e0533a; }
+.lv-tray { fill: #f3e8da; stroke: #e0d2bf; stroke-width: .4; }
+.lv-tray-t { font-size: 3px; fill: #8a7a6a; }
+.lv-wt rect { fill: #3d8fd6; stroke: #1d5f9c; stroke-width: .4; }
+.lv-wt text { font-size: 4.2px; font-weight: 900; fill: #fff; text-anchor: middle; pointer-events: none; }
+.lv-wt { cursor: grab; }
+.lv-wt.fixed rect { fill: #8c8c8c; stroke: #5c5c5c; }
+.lv-wt.fixed { cursor: not-allowed; }
+.lv-wt.ghost { opacity: .8; pointer-events: none; }
+.lv-sum { display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: center; align-items: center; margin-top: 8px; font-weight: 800; color: #4a3b2c; }
+.lv-sum b { font-size: 1.2rem; color: #e0533a; }
+.lv-cmp { font-size: 1.4rem; font-weight: 900; }
+.pz-hub { grid-template-columns: repeat(3, 1fr); }

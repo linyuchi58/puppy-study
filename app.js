@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.18.0';
-  const APP_BUILD = '20261127-7';
+  const APP_VERSION = 'v3.19.0';
+  const APP_BUILD = '20261128-1';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
@@ -3361,6 +3361,31 @@
         const off = TG.isSolved();
         window.PuppyPuzzle.ctx.back();
         ok(window.PuppyTangram.LEVELS.length >= 12 && !bad.length && !off, '七巧板 ' + window.PuppyTangram.LEVELS.length + ' 題：照答案擺就過關、一開始和放歪都不算' + (bad.length ? '：' + bad.join('、') : ''));
+      }
+      // v3.19.0：數獨一定只有一個答案、數字華容道一定解得開、槓桿天平每一關的答案都平衡
+      if (window.PuppySudoku) {
+        const SD = window.PuppySudoku._t;
+        let good = true;
+        ['sd4', 'sd6', 'sd9e'].forEach(id => {
+          const lv = SD.BY_ID[id], z = SD.makePuzzle(lv);
+          const holes = z.puz.filter(v => !v).length;
+          if (SD.countSol(z.puz.slice(), lv.n, lv.br, lv.bc, 2) !== 1 || SD.conflicts(z.sol, lv).size || holes < lv.holes * 0.8) good = false;
+        });
+        const lv4 = SD.BY_ID.sd4, bad4 = SD.conflicts([1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], lv4);
+        ok(good && bad4.size === 2, '數獨 4×4、6×6、9×9：題目只有一個答案、答案沒有重複；同一排重複會標出來');
+      }
+      if (window.PuppySlide) {
+        const SL = window.PuppySlide._t, b = SL.mixed(4, 200);
+        const b2 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 0, 15];
+        const moved = SL.slide(b2, 4, 15);
+        const b3 = [1, 2, 3, 0, 5, 6, 7, 4, 9, 10, 11, 8, 13, 14, 15, 12];
+        const moved3 = SL.slide(b3, 4, 15);
+        ok(!SL.isSolved(b) && b.slice().sort((x, y) => x - y).join() === Array.from({ length: 16 }, (_, i) => i).join() && moved === 1 && SL.isSolved(b2) && moved3 === 3 && SL.isSolved(b3), '數字華容道：打亂後不是原樣、數字齊全；點同一欄最下面一次滑 3 格');
+      }
+      if (window.PuppyLever) {
+        const LV = window.PuppyLever._t;
+        const okAll = LV.PUZZLES.every(pz => pz.fixed.reduce((s, f) => s + f[0] * f[1], 0) + pz.tray.reduce((s, w, k) => s + w * pz.sol[k], 0) === 0 && pz.sol.every(p => p && Math.abs(p) <= 5));
+        ok(LV.PUZZLES.length === 10 && okAll && LV.torque([{ w: 2, p: -3 }, { w: 3, p: 2 }]) === 0, '槓桿天平 10 關：每一關的答案都平衡（重量 × 距離）');
       }
       if (window.PuppyGomoku) {
         const GK = window.PuppyGomoku._t, N = GK.N, b = new Array(N * N).fill(0), ix = (x, y) => y * N + x;
