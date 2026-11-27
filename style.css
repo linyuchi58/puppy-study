@@ -1026,6 +1026,28 @@ body.ty-exam .modal-backdrop { z-index: 600; }
 .mc-key { touch-action: manipulation; }
 .mc-key.nextk { font-size: 1.05rem; background: #f3edff; border-color: #cdb6f0; color: #5b3aa0; }
 .mc-key.ok.wide { grid-column: span 3; }
+/* v3.20.0：計算紙（作答畫面右邊的手寫區） */
+.mc-split { display: flex; align-items: stretch; gap: 0; margin-top: 6px; }
+.mc-main { flex: 1 1 0; min-width: 0; }
+.mc-divider { flex: 0 0 22px; display: flex; align-items: center; justify-content: center; cursor: col-resize; touch-action: none; user-select: none; -webkit-user-select: none; }
+.mc-divider > span { width: 6px; height: 64px; border-radius: 3px; background: #d8c8b4; }
+.mc-divider:hover > span, .mc-divider.on > span { background: #8a5cd6; }
+.mc-scratch { flex: 0 0 38%; min-width: 0; display: flex; flex-direction: column; text-align: left; }
+.mc-sc-label { font-size: .78rem; color: #8a7a6a; font-weight: 700; margin: 0 0 3px 2px; }
+.mc-sc-tools { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 6px; }
+.mc-sc-btn { font-family: inherit; font-size: .85rem; font-weight: 800; padding: 6px 9px; border-radius: 10px; border: 2px solid #e3d6c3; background: #fff; color: #4a3b2c; cursor: pointer; touch-action: manipulation; display: inline-flex; align-items: center; gap: 4px; }
+.mc-sc-btn i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; }
+.mc-sc-btn.on { border-color: #8a5cd6; background: #f3edff; box-shadow: 0 0 0 2px #e6d9fb; }
+.mc-sc-btn.act { background: #fff8ee; }
+.mc-sc-wrap { position: relative; flex: 1 1 auto; min-height: 360px; }
+.mc-sc-canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; box-sizing: border-box; display: block; border: 2px solid #d8c8b4; border-radius: 12px; touch-action: none; cursor: crosshair; -webkit-user-select: none; user-select: none;
+  background-color: #fff; background-image: linear-gradient(#eef3fb 1px, transparent 1px), linear-gradient(90deg, #eef3fb 1px, transparent 1px); background-size: 24px 24px; }
+@media (max-width: 760px) {
+  .mc-split { flex-direction: column; }
+  .mc-divider { display: none; }
+  .mc-scratch { flex: none !important; margin-top: 12px; }
+  .mc-sc-wrap { flex: none; height: 300px; min-height: 0; }
+}
 
 .mc-wrong { margin: 10px auto 0; max-width: 520px; text-align: left; background: #fff5f2; border-radius: 12px; padding: 8px 12px; }
 .ty-stars-big { font-size: 2.4rem; color: #f0a800; letter-spacing: .15em; margin: 4px 0 8px; }
@@ -1284,3 +1306,15 @@ body.ty-exam .modal-backdrop { z-index: 600; }
 .lv-sum b { font-size: 1.2rem; color: #e0533a; }
 .lv-cmp { font-size: 1.4rem; font-weight: 900; }
 .pz-hub { grid-template-columns: repeat(3, 1fr); }
+
+/* ── v3.19.2 iPad Safari：上下滑動時網址列／分頁列不要縮起來 ──
+   整個網頁（html）固定不捲，改由 body 自己捲動。
+   Safari 只有在「整頁」捲動時才會收合工具列，所以這樣工具列就固定不動。 */
+html { height: 100%; overflow: hidden; }
+body {
+  height: 100%;
+  overflow-x: hidden; overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: none;
+}
+@supports (height: 100dvh) { body { height: 100dvh; } }

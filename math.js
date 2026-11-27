@@ -351,11 +351,12 @@
       seen.add(q.q); qs.push(q);
     }
     while (qs.length < ROUND_N) qs.push(c.gen());
+    pad.acts = []; pad.cur = null;
     run = { c, qs, i: 0, input: '', fin: { w: '', n: '', d: '' }, box: 'd', tries: 0, firstOk: 0, fixed: 0, wrong: 0, fast: 0, started: Date.now(), qAt: Date.now(), activeMs: 0, msg: '', hint: '', reveal: '', lock: false, wrongList: [] };
     view = 'play';
     render();
     // 手機上題目在狗狗卡片下面：開始時捲到題目
-    try { if (pane && window.innerWidth < 900) window.scrollTo({ top: Math.max(0, pane.getBoundingClientRect().top + window.scrollY - 110), behavior: 'smooth' }); } catch (e) { /* 忽略 */ }
+    try { if (pane && window.innerWidth < 900) { const sc = document.body; const y = Math.max(0, pane.getBoundingClientRect().top + (sc.scrollTop || window.scrollY) - 110); sc.scrollTo({ top: y, behavior: 'smooth' }); window.scrollTo({ top: y, behavior: 'smooth' }); } } catch (e) { /* 忽略 */ }
     sayQ();
     return true;
   }
@@ -488,6 +489,110 @@
     render();
   }
 
+
+  // ── v3.20.0：計算紙（作答畫面右邊的手寫區）──
+  // 筆跡記在 pad.acts（換題目重畫，不會不見）；寬度比例記在 localStorage
+  const PAD_COLORS = { black: '#222222', red: '#d62828', blue: '#1d5fd1' };
+  const pad = { acts: [], tool: 'black', frac: 0.38, cur: null, ro: null };
+  try { const f = parseFloat(localStorage.getItem('puppy_math_pad_w')); if (f >= 0.2 && f <= 0.7) pad.frac = f; } catch (e) { /* 忽略 */ }
+  function padHtml() {
+    const tb = (k, label, cls) => `<button type="button" class="mc-sc-btn${cls ? ' ' + cls : ''}${pad.tool === k ? ' on' : ''}" data-pad="${k}">${label}</button>`;
+    return `<div class="mc-divider" id="mcDiv" title="左右拖曳，調整計算紙大小"><span></span></div>
+      <div class="mc-scratch" id="mcScratch">
+        <div class="mc-sc-label">計算紙</div>
+        <div class="mc-sc-tools">${tb('black', '<i style="background:#222"></i>黑筆')}${tb('red', '<i style="background:#d62828"></i>紅筆')}${tb('blue', '<i style="background:#1d5fd1"></i>藍筆')}${tb('eraser', '🧽 橡皮擦')}${tb('undo', '↶ 復原', 'act')}${tb('clear', '🗑 整個清除', 'act')}</div>
+        <div class="mc-sc-wrap"><canvas class="mc-sc-canvas" id="mcCanvas"></canvas></div>
+      </div>`;
+  }
+  function padDraw(ctx, a) {
+    if (!a.pts.length) return;
+    ctx.save();
+    ctx.globalCompositeOperation = a.tool === 'eraser' ? 'destination-out' : 'source-over';
+    ctx.strokeStyle = ctx.fillStyle = a.tool === 'eraser' ? '#000' : PAD_COLORS[a.tool];
+    ctx.lineWidth = a.tool === 'eraser' ? 26 : 3;
+    ctx.lineCap = ctx.lineJoin = 'round';
+    const p = a.pts;
+    if (p.length === 1) { ctx.beginPath(); ctx.arc(p[0][0], p[0][1], ctx.lineWidth / 2, 0, Math.PI * 2); ctx.fill(); }
+    else { ctx.beginPath(); ctx.moveTo(p[0][0], p[0][1]); for (let i = 1; i < p.length; i++) ctx.lineTo(p[i][0], p[i][1]); ctx.stroke(); }
+    ctx.restore();
+  }
+  function padRedraw() {
+    const cv = pane && pane.querySelector('#mcCanvas');
+    if (!cv) return;
+    const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    const W = Math.max(1, Math.round(r.width * dpr)), H = Math.max(1, Math.round(r.height * dpr));
+    if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+    const ctx = cv.getContext('2d');
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    let start = 0;
+    pad.acts.forEach((a, i) => { if (a.clear) start = i + 1; });
+    pad.acts.slice(start).forEach(a => padDraw(ctx, a));
+  }
+  function padApplyWidth() {
+    const sc = pane && pane.querySelector('#mcScratch');
+    if (sc) sc.style.flexBasis = (pad.frac * 100).toFixed(1) + '%';
+  }
+  function padTool(k) {
+    if (k === 'undo') { pad.acts.pop(); padRedraw(); return; }
+    if (k === 'clear') { if (pad.acts.length && !pad.acts[pad.acts.length - 1].clear) pad.acts.push({ clear: true }); padRedraw(); return; }
+    pad.tool = k;
+    pane.querySelectorAll('.mc-sc-btn[data-pad]').forEach(b => b.classList.toggle('on', b.dataset.pad === k));
+  }
+  function initPad() {
+    const cv = pane && pane.querySelector('#mcCanvas');
+    if (!cv) return;
+    padApplyWidth();
+    pane.querySelectorAll('.mc-sc-btn').forEach(b => {
+      b.addEventListener('pointerdown', ev => ev.preventDefault());   // 不搶走焦點，Enter 還是送出答案
+      b.addEventListener('click', ev => { ev.preventDefault(); padTool(b.dataset.pad); });
+    });
+    const pos = ev => { const r = cv.getBoundingClientRect(); return [ev.clientX - r.left, ev.clientY - r.top]; };
+    cv.addEventListener('pointerdown', ev => {
+      if (pad.cur) return;                                            // 一次一筆（手掌碰到不會亂畫）
+      ev.preventDefault();
+      try { cv.setPointerCapture(ev.pointerId); } catch (e) { /* 忽略 */ }
+      pad.cur = { tool: pad.tool, pts: [pos(ev)], id: ev.pointerId };
+      pad.acts.push(pad.cur);
+      padDraw(cv.getContext('2d'), pad.cur);
+    });
+    cv.addEventListener('pointermove', ev => {
+      if (!pad.cur || ev.pointerId !== pad.cur.id) return;
+      ev.preventDefault();
+      const evs = ev.getCoalescedEvents ? ev.getCoalescedEvents() : [ev];
+      const ctx = cv.getContext('2d');
+      (evs.length ? evs : [ev]).forEach(e => {
+        const p = pos(e), last = pad.cur.pts[pad.cur.pts.length - 1];
+        pad.cur.pts.push(p);
+        padDraw(ctx, { tool: pad.cur.tool, pts: [last, p] });
+      });
+    });
+    const end = ev => { if (pad.cur && ev.pointerId === pad.cur.id) { delete pad.cur.id; pad.cur = null; } };
+    cv.addEventListener('pointerup', end);
+    cv.addEventListener('pointercancel', end);
+    cv.addEventListener('touchmove', ev => ev.preventDefault(), { passive: false });   // 畫圖時頁面不捲動
+    // 分隔線：左右拖曳調整寬度
+    const dv = pane.querySelector('#mcDiv'), sp = pane.querySelector('.mc-split');
+    if (dv && sp) {
+      let drag = null;
+      dv.addEventListener('pointerdown', ev => { ev.preventDefault(); drag = ev.pointerId; try { dv.setPointerCapture(ev.pointerId); } catch (e) { /* 忽略 */ } dv.classList.add('on'); });
+      dv.addEventListener('pointermove', ev => {
+        if (drag !== ev.pointerId) return;
+        ev.preventDefault();
+        const r = sp.getBoundingClientRect();
+        pad.frac = Math.max(0.2, Math.min(0.7, (r.width - 270) / r.width, (r.right - ev.clientX) / r.width));   // 題目區至少留 270px
+        padApplyWidth(); padRedraw();
+      });
+      const stop = ev => { if (drag !== ev.pointerId) return; drag = null; dv.classList.remove('on'); try { localStorage.setItem('puppy_math_pad_w', pad.frac.toFixed(3)); } catch (e) { /* 忽略 */ } };
+      dv.addEventListener('pointerup', stop);
+      dv.addEventListener('pointercancel', stop);
+      dv.addEventListener('touchmove', ev => ev.preventDefault(), { passive: false });
+    }
+    if (window.ResizeObserver) { if (pad.ro) pad.ro.disconnect(); pad.ro = new ResizeObserver(() => padRedraw()); pad.ro.observe(cv); }
+    padRedraw();
+  }
+
   // ── 畫面 ──
   const starStr = n => '★'.repeat(n) + '☆'.repeat(3 - n);
   function homeHtml() {
@@ -520,6 +625,7 @@
     return `
       <div class="card-box mc-play">
         <div class="mc-top"><b>${esc(run.c.name)}</b><span class="mc-dots">${dots}</span><span class="mc-time" id="mcTime">0 秒</span><button class="btn btn-soft mc-quit" id="mcQuit">結束</button></div>
+<div class="mc-split"><div class="mc-main">
         <div class="mc-q${q.fr ? ' frq' : ''}" id="mcQ">${fracHtml(q.q)}</div>
         ${q.fr ? `<div class="mc-fin" id="mcFin"><button class="mc-box w" data-k="box:w" data-ph="整數"></button>
           <span class="mc-fstack"><button class="mc-box n" data-k="box:n" data-ph="分子"></button><span class="mc-fbar"></span><button class="mc-box d" data-k="box:d" data-ph="分母"></button></span></div>` : '<div class="mc-in" id="mcIn"></div>'}
@@ -528,6 +634,7 @@
         <div class="mc-pad">${(q.fr ? ['7', '8', '9', '4', '5', '6', '1', '2', '3', '0'] : ['7', '8', '9', '4', '5', '6', '1', '2', '3', '0', '.', '/']).map(k => `<button class="mc-key" data-k="${k}">${k}</button>`).join('')}
           ${q.fr ? '<button class="mc-key nextk" data-k="next">➜ 下一格</button>' : ''}<button class="mc-key back" data-k="back">⌫</button><button class="mc-key ok${q.fr ? ' wide' : ''}" data-k="enter">✔ 確定</button></div>
         <p class="section-sub mc-tip">${q.fr ? '點一下格子就能換格（或按「➜ 下一格」）。<b>帶分數</b>：三格都填；<b>假分數、真分數</b>：整數格空白；答案是整數就只填整數格。<br>電腦：Tab 或空白鍵換格、/ 跳到分母、Enter 確定。' : '可以用鍵盤打數字，按 Enter 確定。分數打成 3/7，小數打成 2.5。'}</p>
+        </div>${padHtml()}</div>
       </div>`;
   }
   function resultHtml() {
@@ -574,7 +681,7 @@
     on('#mcQuit', () => { if (confirm('要結束這一回嗎？這一回不會記錄。')) { run = null; view = 'home'; render(); } });
     on('#mcHome', () => { view = 'home'; render(); });
     on('#mcAgain', () => startCourse(last.c.id));
-    if (view === 'play') paintAll();
+    if (view === 'play') { paintAll(); initPad(); }
     try { if (api && api.focus) api.focus(); } catch (e) { /* 忽略 */ }   // 作答時狗狗到角落，不擋按鍵
   }
   function onKey(ev) {
@@ -603,6 +710,6 @@
     show() { render(); },
     hide() { },
     COURSES, GROUPS,
-    _t: { startCourse, typeKey, normAns, sameAns, judgeFrac, fracHtml, mixStr, fr, data, today, stars, tooEasy, maxMasteredGrade, BY_ID, run: () => run, last: () => last, view: () => view, DAY_XP_CAP, REPLAY_PER_DAY, finishNow: () => finish(), setView: v => { view = v; } }
+    _t: { pad: () => pad, startCourse, typeKey, normAns, sameAns, judgeFrac, fracHtml, mixStr, fr, data, today, stars, tooEasy, maxMasteredGrade, BY_ID, run: () => run, last: () => last, view: () => view, DAY_XP_CAP, REPLAY_PER_DAY, finishNow: () => finish(), setView: v => { view = v; } }
   };
 })();

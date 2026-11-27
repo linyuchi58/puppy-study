@@ -540,7 +540,7 @@
   });
 
   function scrollTop() {
-    try { pane.scrollIntoView({ block: 'start' }); window.scrollBy(0, -70); } catch (e) { /* 忽略 */ }
+    try { pane.scrollIntoView({ block: 'start' }); document.body.scrollBy(0, -70); window.scrollBy(0, -70); } catch (e) { /* 忽略 */ }
   }
 
   function startLesson(lessonId) {
