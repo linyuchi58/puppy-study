@@ -1895,6 +1895,37 @@
       world.dog.setState('chase_fly', 10);
       playTone('pop');
     },
+    // v3.15.0 寵物互動：🧹 收玩具（地上的玩具、飯碗、骨頭土堆、蒼蠅都收起來）。回傳收了幾樣
+    clearToys() {
+      const n = world.toys.length + (world.bowl ? 1 : 0) + (world.buriedBone ? 1 : 0) + (world.fly ? 1 : 0);
+      world.toys = [];
+      world.bowl = null;
+      world.buriedBone = null;
+      world.fly = null;
+      const d = world.dog;
+      if (d) {
+        d.carry = null;
+        d.fetch_toy = null;
+        if (['fetch', 'return', 'goto_bowl', 'eat', 'sniff_bone', 'chase_fly', 'chew_bone'].includes(d.state)) {
+          d.y = world.floor;
+          d.setState('sit', 2.5);
+        }
+      }
+      return n;
+    },
+    // v3.15.0 寵物互動：📏 大小（1.05＝原本的大小）
+    setScale(s) {
+      const v = clamp(Number(s) || 1.05, 0.5, 2);
+      world.S = v;
+      if (world.dog) {
+        world.dog.x = clamp(world.dog.x, 70 * v, world.W - 70 * v);
+        if (!world.dog.busy()) world.dog.y = world.floor;
+      }
+      return v;
+    },
+    getScale() {
+      return world.S;
+    },
     isPeek() {
       return world.peekMode;
     },

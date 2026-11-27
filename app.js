@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.13.2';
-  const APP_BUILD = '20261126-2';
+  const APP_VERSION = 'v3.14.0';
+  const APP_BUILD = '20261127-1';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
@@ -88,6 +88,8 @@
   };
   const TRICKS = [
     // 代號, 圖示, 名稱, 需要的親密度等級（看所有夥伴裡最高的那一隻）, 表演時說的話
+    ['come', '🐕', '過來', 1, '🐕 我來了我來了！'],          // v3.15.0：電腦版「指令把戲」也有（不用等級）
+    ['bark', '🗯', '叫一聲', 1, '🗯 汪汪！'],
     ['sit', '💺', '坐下', 1, '💺 坐好了！我很乖吧？'],
     ['lie', '🛏', '趴下', 1, '🛏 趴下來休息一下～'],
     ['sleep', '💤', '睡覺', 1, '💤 呼嚕嚕…小睡一下～'],
@@ -746,6 +748,7 @@
     if (document.body.classList.contains('ty-exam') || document.body.classList.contains('ty-playing')) return true;
     if (window.PuppyTyping && window.PuppyTyping.isPlaying && window.PuppyTyping.isPlaying()) return true;
     if (window.PuppyMath && window.PuppyMath.isPlaying && window.PuppyMath.isPlaying()) return true;
+    if (window.PuppyPuzzle && window.PuppyPuzzle.isPlaying && window.PuppyPuzzle.isPlaying()) return true;
     if (currentQuiz && activeTab === 'english') return true;
     if (window.PuppySEL && window.PuppySEL.isOpen && window.PuppySEL.isOpen()) return true;
     const bd = document.getElementById('modalBackdrop');
@@ -772,7 +775,7 @@
   //  v3.3.0 學習換陪玩：道具要用星星、才藝依親密度解鎖
   // ════════════════════════════════════════════════════════════════════
   let lastTrickAt = 0;
-  let playTab = 'food';
+  let playTab = window.PuppyPetPlay ? 'pet' : 'food';
 
   // 用掉一個道具（餵食或玩具）。回傳 true＝成功
   function useItem(kind) {
@@ -876,8 +879,12 @@
     const open = state.settings.play_open !== false;
     const tabs = [['food', '🍖 餵食'], ['toy', '🎾 玩具'], ['trick', `🎓 才藝 ${learned}/${TRICKS.length}`]];
     if (window.PuppySEL) tabs.push(['tease', '😜 惡作劇']);   // v3.12.0 SEL
+    const pp = window.PuppyPetPlay;   // v3.15.0：🐾 寵物互動（電腦版同款，在 petplay.js）
+    if (pp) { tabs.unshift(['pet', '🐾 互動']); try { pp.apply(); } catch (e) { /* 忽略 */ } }
     let grid = '';
-    if (playTab === 'tease' && window.PuppySEL) {
+    if (playTab === 'pet' && pp) {
+      grid = pp.grid();
+    } else if (playTab === 'tease' && window.PuppySEL) {
       grid = window.PuppySEL.TEASES.map(([k, icon, name]) => `<button class="chip-btn" data-tease="${k}">${icon} ${name}</button>`).join('') +
         '<button class="chip-btn chip-mood" data-mood="1">🌈 心情小站</button>';
     } else if (playTab === 'trick') {
@@ -892,7 +899,7 @@
       }).join('');
     }
     const nextTrick = TRICKS.find(t => t[3] > lv);
-    const tip = playTab === 'tease' ? '小小捉弄一下沒關係，但一直捉弄，夥伴會委屈、生氣喔。捉弄不會拿到星星，照顧心情才會。'
+    const tip = playTab === 'pet' && pp ? pp.tip() : playTab === 'tease' ? '小小捉弄一下沒關係，但一直捉弄，夥伴會委屈、生氣喔。捉弄不會拿到星星，照顧心情才會。'
       : playTab === 'trick'
       ? (nextTrick ? `下一個才藝：Lv${nextTrick[3]} ${nextTrick[1]}${nextTrick[2]}（還差 ${Math.max(1, BOND_LV[nextTrick[3] - 1] - maxBondPts())} 點親密度）` : '全部才藝都學會了，太厲害了！')
       : (playTab === 'food' ? '用學習賺到的星星請夥伴吃東西。吃飽了才有力氣玩和表演。' : '買一次玩具可以用手指丟好幾次。直接摸頭、抓起來放開都免費。');
@@ -921,7 +928,10 @@
         saveState();
       } else if (btn.dataset.playtab) {
         playTab = btn.dataset.playtab;
+        if (window.PuppyPetPlay) window.PuppyPetPlay.reset();
         renderPlayground();
+      } else if (btn.dataset.pp && window.PuppyPetPlay) {
+        if (window.PuppyPetPlay.click(btn.dataset.pp)) renderPlayground();
       } else if (btn.dataset.item) {
         useItem(btn.dataset.item);
       } else if (btn.dataset.trick) {
@@ -1199,7 +1209,8 @@
     if (!pi || !pi.setPeek) return;
     const want = (!!currentQuiz && activeTab === 'english') ||
       (activeTab === 'typing' && !!window.PuppyTyping && window.PuppyTyping.isPlaying()) ||
-      (activeTab === 'math' && !!window.PuppyMath && window.PuppyMath.isPlaying());
+      (activeTab === 'math' && !!window.PuppyMath && window.PuppyMath.isPlaying()) ||
+      (activeTab === 'puzzle' && !!window.PuppyPuzzle && window.PuppyPuzzle.isPlaying());
     if (want && !userPeek && !autoPeek) {
       pi.setPeek(true);
       autoPeek = true;
@@ -2293,6 +2304,7 @@
     `;
 
     if (window.PuppyCloud) { try { window.PuppyCloud.render(document.getElementById('cloudBox')); } catch (e) { /* 忽略 */ } }
+    if (window.PuppyVIP) { try { window.PuppyVIP.render(wrap); } catch (e) { /* 忽略 */ } }   // v3.15.0：版本號下面的淡色 🔑
     wrap.querySelectorAll('[data-restore-day]').forEach(btn => {
       btn.addEventListener('click', () => {
         const day = btn.dataset.restoreDay;
@@ -2555,7 +2567,8 @@
     // v3.10.0：先記下原本在哪一頁，離開打字頁時才會正確收起（原本先改 activeTab，這行永遠不會成立）
     if (window.PuppyTyping && activeTab === 'typing' && tab !== 'typing') window.PuppyTyping.hide();
     activeTab = tab;
-    ['english', 'checkin', 'typing', 'math', 'dex', 'transfer'].forEach(t => {
+    if (window.PuppyPuzzle && activeTab === 'puzzle' && tab !== 'puzzle') window.PuppyPuzzle.hide();
+    ['english', 'checkin', 'typing', 'math', 'puzzle', 'dex', 'transfer'].forEach(t => {
       const pane = document.getElementById('tab-' + t);
       if (pane) pane.style.display = t === tab ? 'block' : 'none';
     });
@@ -2568,6 +2581,7 @@
     if (tab === 'transfer') renderTransferTab();
     if (tab === 'typing' && window.PuppyTyping) window.PuppyTyping.show();
     if (tab === 'math' && window.PuppyMath) window.PuppyMath.show();
+    if (tab === 'puzzle' && window.PuppyPuzzle) window.PuppyPuzzle.show();
     if (tab !== 'english') syncFocusMode();
   }
 
@@ -2696,6 +2710,30 @@
   initVocab();
   if (window.PuppyInteractive) window.PuppyInteractive.init();
   initEvents();
+  // v3.15.0：🐾 寵物互動（petplay.js）、🔑 VIP 驗證碼（vip.js，只存雜湊）
+  if (window.PuppyPetPlay) {
+    window.PuppyPetPlay.mount({
+      getState: () => state,
+      save: () => { saveState(); if (activeTab === 'dex') renderDexTab(); },
+      useItem: k => useItem(k),
+      setPlayTab: k => { playTab = k; renderPlayground(); },
+      petSay: (msg, mood) => petSay(msg, mood || 'normal'),
+      maxDogLevel: () => maxDogLevel(),
+      isPetUnlocked: pid => isPetUnlocked(pid),
+      ITEMS, DOG_ACC, DOG_COAT, PETS
+    });
+  }
+  if (window.PuppyVIP) {
+    window.PuppyVIP.mount({
+      getState: () => state,
+      save: () => saveState(),
+      sha256: s => sha256Hex(s),
+      today: () => todayStr(),
+      petSay: msg => petSay(msg, 'happy'),
+      refresh: () => { checkNewUnlocks(); saveState(); refreshView(); },
+      PETS, BOND_LV, HEART_MAX
+    });
+  }
   initPlayground();
   // v3.5.0 英打練習：紀錄放在 state.typing，獎勵走同一個 award()
   if (window.PuppyTyping) {
@@ -2724,6 +2762,16 @@
       award: (xp, stars, subj, text) => award(xp, stars, subj, text),
       focus: () => syncFocusMode(),
       mathCorrect: n => { state.totals.math_correct = (state.totals.math_correct || 0) + Math.max(0, n || 0); }
+    });
+  }
+  // v3.14.0：🧩 益智挑戰（魔術方塊）
+  if (window.PuppyPuzzle) {
+    window.PuppyPuzzle.mount(document.getElementById('tab-puzzle'), {
+      getState: () => state,
+      save: () => saveState(),
+      award: (xp, stars, subj, text) => award(xp, stars, subj, text),
+      petSay: msg => petSay(msg, 'happy'),
+      focus: () => syncFocusMode()
     });
   }
   updateTopBar();
@@ -2953,6 +3001,41 @@
           '轉盤獎勵固定：連續 N 天 +N⭐、最多 +7⭐；8 格都是表演（價值一樣）');
         state.streak = JSON.parse(st0); state.wheel = JSON.parse(w0);
       }
+      // v3.15.0：🐾 寵物互動、🔑 VIP 驗證碼
+      {
+        const PP = window.PuppyPetPlay, PI = window.PuppyInteractive, V = window.PuppyVIP;
+        ok(!!PP && !!V && !!PI && typeof PI.clearToys === 'function' && typeof PI.setScale === 'function', '寵物互動、VIP 有載入，狗狗會收玩具、改大小');
+        if (PP && V && PI) {
+          const keep = JSON.stringify(state);
+          const html = PP.grid();
+          ok(['使用道具', '指令把戲', '餵飯', '丟皮球', '收玩具', '變裝配件', '洗澡', '毛色', '大小', '寵物靜音'].every(w => html.includes(w)), '寵物互動有電腦版的 10 格');
+          state.stars = 10; state.pets.fullness = 50;
+          PP.click('item:ball');
+          ok(state.stars === 8, '寵物互動「丟皮球」照樣花 2⭐');
+          ok(PP.click('tidy') === false && PI.clearToys() === 0, '收玩具：地上的玩具都收起來');
+          PP.click('size:大');
+          ok(state.settings.pet_size === '大' && Math.abs(PI.getScale() - 1.4) < 1e-6, '大小：選「大」狗狗變大，而且記下來');
+          PP.click('size:中');
+          ok(Math.abs(PI.getScale() - 1.05) < 1e-6, '大小：「中」回到原本大小');
+          PP.click('mute');
+          ok(state.settings.pet_mute === true && window.PUPPY_SOUND_OFF === true, '寵物靜音：打開後狗狗不出聲');
+          PP.click('mute');
+          ok(!state.settings.pet_mute && !window.PUPPY_SOUND_OFF, '寵物靜音：再按一次關掉');
+          state.pets.bond = { 'dog:威爾斯柯基': 0 }; state.pets.unlocked = { 'dog:威爾斯柯基': todayStr() }; state.pets.acc = 'none';
+          PP.click('acc:crown');
+          ok(state.pets.acc === 'none', '變裝配件：等級不夠戴不上小皇冠');
+          PP.click('coat:dog:柴犬');
+          ok(state.pets.current !== 'dog:柴犬' || isPetUnlocked('dog:柴犬'), '毛色：還沒解鎖的狗狗不能換');
+          ok(V._test.norm(' ab-c d1 ') === 'ABCD1' && V.tryCode('ZZZZ-0000') === 'wrong' && state.stars === 8, 'VIP：錯的代碼沒有效果');
+          ok(/^[0-9a-f]{64}$/.test(V._test.HASH), 'VIP：程式裡只存雜湊');
+          V._test.grant(state);
+          ok(state.stars >= 9999 && PETS.every(p => isPetUnlocked(p[0])) && maxBondLevel() === BOND_LV.length && maxDogLevel() >= 6 && TRICKS.every(t => trickOk(t[0])), 'VIP 解鎖：全部夥伴、才藝、配件，星星到頂');
+          PP.click('acc:crown');
+          ok(state.pets.acc === 'crown', 'VIP 之後可以戴小皇冠');
+          Object.keys(state).forEach(k => delete state[k]); Object.assign(state, JSON.parse(keep));
+          PP.reset(); PP.apply();
+        }
+      }
       // v3.12.0 SEL 心情小站
       if (window.PuppySEL) {
         const SL = window.PuppySEL, ST = SL._t;
@@ -3179,6 +3262,30 @@
         mc.prog.u13 = 3;                 // 精熟 5 年級的課
         ok(MT.tooEasy(MT.BY_ID.a1) && MT.tooEasy(MT.BY_ID.d1) && !MT.tooEasy(MT.BY_ID.x3) && !MT.tooEasy(MT.BY_ID.v2), '精熟 5 年級的課後，1～3 年級的課算「太簡單」（重複練習不加經驗值），4 年級以上不算');
         mc.prog = {}; mc.days = {}; state.totals.math_correct = 0;
+      }
+      // v3.14.0：益智挑戰（魔術方塊）
+      if (window.PuppyPuzzle) {
+        const PZ = window.PuppyPuzzle._t;
+        let okAll = true;
+        [2, 3, 4].forEach(n => {
+          const c = PZ.makeCube(n);
+          if (!PZ.isSolved(c) || c.cubies.length !== n * n * n - Math.pow(Math.max(0, n - 2), 3)) okAll = false;
+          [0, 1, 2].forEach(ax => { PZ.turn(c, ax, n - 1, 1); if (PZ.isSolved(c)) okAll = false; PZ.turn(c, ax, n - 1, -1); if (!PZ.isSolved(c)) okAll = false; });
+        });
+        ok(okAll, '魔術方塊 2×2、3×3、4×4：新方塊是六面同色；轉一層就亂、轉回來又同色');
+        const c3 = PZ.makeCube(3), mv = PZ.scrambleMoves(3, 0);
+        mv.forEach(([a, l, q]) => PZ.turn(c3, a, l, q));
+        const mixed = !PZ.isSolved(c3);
+        mv.slice().reverse().forEach(([a, l, q]) => PZ.turn(c3, a, l, -q));
+        const c4 = PZ.makeCube(4); for (let i = 0; i < 4; i++) PZ.turn(c4, 1, -1, 1);
+        ok(mv.length === 25 && mixed && PZ.isSolved(c3) && PZ.isSolved(c4), '打亂 25 步再倒著轉回去會復原；同一層轉 4 次回到原狀');
+        const pd = PZ.data(); pd.days = {}; pd.wins = {}; pd.best = {}; pd.bestm = {};
+        const L = PZ.BY_ID;
+        const r1 = PZ.reward(L.c3a, 20, 3), r2 = PZ.reward(L.c3a, 15, 2);
+        ok(r1.stars === 1 && r1.xp === 4 && r2.stars === 0 && r2.xp === 0 && pd.best.c3a === 15 && pd.bestm.c3a === 2, '魔術方塊暖身關：一天領一次獎勵，再過關只刷新紀錄');
+        PZ.reward(L.c4, 300, 200); const r3 = PZ.reward(L.c3, 200, 150), r4 = PZ.reward(L.c3, 200, 150);
+        ok(r3.stars === 6 && r3.xp === 26 && r4.stars === 6 && r4.xp === 0 && PZ.today().xp === PZ.DAY_XP_CAP, '益智挑戰經驗值一天最多 ' + PZ.DAY_XP_CAP + '（星星照給）');
+        pd.days = {}; pd.wins = {}; pd.best = {}; pd.bestm = {};
       }
       // v3.9.4：不適合國小的字已從詞庫拿掉
       { const ws = new Set(((window.VOCAB_CEEC && window.VOCAB_CEEC.words) || []).map(w => String(w.s || '').toLowerCase()));

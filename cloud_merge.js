@@ -41,6 +41,7 @@
     if (NEWER_WINS.has(path)) return clone(newerIsA ? a : b);
     if (/^eng\.words\.[^.]+$/.test(path)) return mergeWordRec(a, b);
     if (/^mathc\.best\.[^.]+$/.test(path) && typeof a === 'number' && typeof b === 'number') return Math.min(a, b);   // v3.10.0：心算最快秒數，越少越好
+    if (/^puzzle\.bestm?\.[^.]+$/.test(path) && typeof a === 'number' && typeof b === 'number') return Math.min(a, b);   // v3.14.0：益智挑戰最快秒數、最少步數，越少越好
     if (typeof a === 'number' && typeof b === 'number') return Math.max(a, b);
     if (typeof a === 'boolean' && typeof b === 'boolean') return a || b;
     if (typeof a === 'string' && typeof b === 'string') {
