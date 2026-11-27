@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.17.0';
-  const APP_BUILD = '20261127-5';
+  const APP_VERSION = 'v3.17.1';
+  const APP_BUILD = '20261127-6';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
@@ -3312,6 +3312,7 @@
         // v3.17.0：分數題（帶分數、假分數都算對）
         const J = (w, n, d, q) => MT.judgeFrac({ w, n, d }, q), q73 = { v: MT.fr(7, 3) }, q1 = { v: MT.fr(1, 1) };
         ok(J('2', '1', '3', q73).ok && J('', '7', '3', q73).ok && J('', '14', '6', q73).ok && J('', '14', '6', q73).note && J('2', '1', '4', q73).ok === false && J('1', '', '', q1).ok && J('', '4', '4', q1).ok, '分數題：帶分數 2又1/3、假分數 7/3、沒約分 14/6（提醒約分）都算對；1 和 4/4 都算對');
+        ok(J('', '8', '6', { v: MT.fr(4, 3) }).note === '答案還可以是 4/3，或是 1又1/3' && J('', '2', '4', { v: MT.fr(1, 2) }).note === '答案還可以是 1/2' && J('', '4', '4', q1).note === '答案還可以是 1' && !J('', '4', '3', { v: MT.fr(4, 3) }).note, '沒約分的提醒：同時給約分後的假分數和帶分數');
         ok(J('', '7', '', q73).skip && J('2', '5', '3', q73).skip && J('', '7', '0', q73).skip && J('', '7', '3', { v: MT.fr(7, 3), form: 'mixed' }).skip && J('2', '1', '3', { v: MT.fr(7, 3), form: 'improper' }).skip, '分數題：沒填分母、帶分數後面超過 1、分母 0、指定寫法不對，只提醒、不算答錯');
         let fbad = '';
         MC.filter(c => c.g === 'frac').forEach(c => { for (let i = 0; i < 200 && !fbad; i++) { const q = c.gen(); if (q.fr && (!(q.v.n > 0) || !(q.v.d > 0) || MT.mixStr(q.v.n, q.v.d) !== (q.form === 'improper' ? MT.mixStr(q.v.n, q.v.d) : q.a) || /NaN|undefined|-/.test(q.q + q.a + q.hint))) fbad = c.id + '：' + q.q; } });

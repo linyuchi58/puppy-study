@@ -85,7 +85,15 @@
     if (q.form === 'mixed' && !whole && (!w || !n)) return { skip: '數字對了！這題要寫成「帶分數」（整數格也要填）' };
     if (q.form === 'improper' && hasW && w) return { skip: '數字對了！這題要寫成「假分數」（整數格空白，只填分子和分母）' };
     let note = '';
-    if (hasN && n && gcd(n, d) > 1) note = `還可以約分成 ${hasW && w ? mixStr(w * d + n, d) : impStr(n, d)}`;
+    if (hasN && n && gcd(n, d) > 1) {     // 沒約分：同時給約分後的假分數和帶分數（v3.17.1）
+      const V = q.v, alts = [];
+      if (V.d === 1) alts.push(String(V.n));
+      else {
+        if (q.form !== 'mixed') alts.push(`${V.n}/${V.d}`);
+        if (V.n > V.d && q.form !== 'improper') alts.push(mixStr(V.n, V.d));
+      }
+      note = '答案還可以是 ' + alts.join('，或是 ');
+    }
     return { ok: true, note };
   }
 
@@ -367,9 +375,9 @@
       run.activeMs += Math.min(60000, spent);
       if (run.tries === 0) { run.firstOk += 1; if (spent < FAST_MS) run.fast += 1; } else run.fixed += 1;
       run.lock = true; run.msg = run.tries === 0 ? pick(['✔ 答對了！', '✔ 好厲害！', '✔ 正確！']) : '✔ 訂正成功！';
-      if (jf && jf.note) run.msg += '（' + jf.note + '）';
+      if (jf && jf.note) run.msg += jf.note;
       paintAll();
-      setTimeout(next, jf && jf.note ? 1600 : run.tries === 0 ? 350 : 700);
+      setTimeout(next, jf && jf.note ? 2400 : run.tries === 0 ? 350 : 700);
       return 'ok';
     }
     if (!jf && !byEnter && normAns(run.input).length < q.a.length) return 'typed';
