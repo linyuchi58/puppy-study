@@ -351,7 +351,7 @@
       seen.add(q.q); qs.push(q);
     }
     while (qs.length < ROUND_N) qs.push(c.gen());
-    run = { c, qs, i: 0, input: '', fin: { w: '', n: '', d: '' }, box: 'n', tries: 0, firstOk: 0, fixed: 0, wrong: 0, fast: 0, started: Date.now(), qAt: Date.now(), activeMs: 0, msg: '', hint: '', reveal: '', lock: false, wrongList: [] };
+    run = { c, qs, i: 0, input: '', fin: { w: '', n: '', d: '' }, box: 'd', tries: 0, firstOk: 0, fixed: 0, wrong: 0, fast: 0, started: Date.now(), qAt: Date.now(), activeMs: 0, msg: '', hint: '', reveal: '', lock: false, wrongList: [] };
     view = 'play';
     render();
     // 手機上題目在狗狗卡片下面：開始時捲到題目
@@ -424,7 +424,7 @@
     if (run.tries === 1) {
       run.hint = q.hint || '再看一次題目，一步一步算';
       run.msg = '再想一想，看下面的 💡 提示';
-      run.input = ''; run.fin = { w: '', n: '', d: '' }; run.box = 'n';
+      run.input = ''; run.fin = { w: '', n: '', d: '' }; run.box = 'd';
       paintAll();
       return 'miss';
     }
@@ -441,7 +441,7 @@
   }
   function next() {
     if (!run) return;
-    run.i += 1; run.input = ''; run.fin = { w: '', n: '', d: '' }; run.box = 'n'; run.tries = 0; run.msg = ''; run.hint = ''; run.reveal = ''; run.lock = false; run.qAt = Date.now();
+    run.i += 1; run.input = ''; run.fin = { w: '', n: '', d: '' }; run.box = 'd'; run.tries = 0; run.msg = ''; run.hint = ''; run.reveal = ''; run.lock = false; run.qAt = Date.now();
     if (run.i >= ROUND_N) { finish(); return; }
     render();
     sayQ();
