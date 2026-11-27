@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.16.0';
-  const APP_BUILD = '20261127-4';
+  const APP_VERSION = 'v3.17.0';
+  const APP_BUILD = '20261127-5';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
@@ -3309,6 +3309,14 @@
         MC.forEach(c => { for (let i = 0; i < 40 && !bad; i++) { const q = c.gen(); if (!q || !q.q || !q.a || !q.hint || MT.normAns(q.a) !== q.a) bad = c.id; } });
         ok(MC.length >= 50 && !bad, '心算課程 ' + MC.length + ' 門，每門課都出得了題（有答案、有提示）' + (bad ? '：' + bad + ' 有問題' : ''));
         ok(MT.sameAns('1/2', '6/12') && MT.sameAns('2.50', '2.5') && !MT.sameAns('0.5', '1/2') && !MT.sameAns('8', '7'), '心算答案：數值一樣就算對（分數題要打分數）');
+        // v3.17.0：分數題（帶分數、假分數都算對）
+        const J = (w, n, d, q) => MT.judgeFrac({ w, n, d }, q), q73 = { v: MT.fr(7, 3) }, q1 = { v: MT.fr(1, 1) };
+        ok(J('2', '1', '3', q73).ok && J('', '7', '3', q73).ok && J('', '14', '6', q73).ok && J('', '14', '6', q73).note && J('2', '1', '4', q73).ok === false && J('1', '', '', q1).ok && J('', '4', '4', q1).ok, '分數題：帶分數 2又1/3、假分數 7/3、沒約分 14/6（提醒約分）都算對；1 和 4/4 都算對');
+        ok(J('', '7', '', q73).skip && J('2', '5', '3', q73).skip && J('', '7', '0', q73).skip && J('', '7', '3', { v: MT.fr(7, 3), form: 'mixed' }).skip && J('2', '1', '3', { v: MT.fr(7, 3), form: 'improper' }).skip, '分數題：沒填分母、帶分數後面超過 1、分母 0、指定寫法不對，只提醒、不算答錯');
+        let fbad = '';
+        MC.filter(c => c.g === 'frac').forEach(c => { for (let i = 0; i < 200 && !fbad; i++) { const q = c.gen(); if (q.fr && (!(q.v.n > 0) || !(q.v.d > 0) || MT.mixStr(q.v.n, q.v.d) !== (q.form === 'improper' ? MT.mixStr(q.v.n, q.v.d) : q.a) || /NaN|undefined|-/.test(q.q + q.a + q.hint))) fbad = c.id + '：' + q.q; } });
+        ok(!fbad && MC.filter(c => c.g === 'frac' && c.gen().fr).length >= 10, '分數題 10 門課，答案都是正的、算得對、沒有怪字' + (fbad ? '：' + fbad : ''));
+        ok(/mc-fr/.test(MT.fracHtml('2又1/3 ＋ 1/4')) && (MT.fracHtml('2又1/3').match(/mc-fr"/g) || []).length === 1, '分數畫成上下排（帶分數只畫一個分數）');
         const mc = MT.data(); mc.prog = {}; mc.days = {};
         mc.prog.u13 = 3;                 // 精熟 5 年級的課
         ok(MT.tooEasy(MT.BY_ID.a1) && MT.tooEasy(MT.BY_ID.d1) && !MT.tooEasy(MT.BY_ID.x3) && !MT.tooEasy(MT.BY_ID.v2), '精熟 5 年級的課後，1～3 年級的課算「太簡單」（重複練習不加經驗值），4 年級以上不算');

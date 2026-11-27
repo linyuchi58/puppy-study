@@ -1007,6 +1007,26 @@ body.ty-exam .modal-backdrop { z-index: 600; }
 .mc-key.back { background: #fff1ea; }
 .mc-key.ok { grid-column: span 2; background: #2fa86a; color: #fff; border-color: #2fa86a; font-size: 1.2rem; }
 .mc-tip { margin-top: 10px; }
+/* v3.17.0：分數上下排、帶分數輸入格 */
+.mc-fr { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; margin: 0 .12em; line-height: 1.05; font-size: .82em; }
+.mc-fr > span { padding: 0 .15em; }
+.mc-fr > span:first-child { border-bottom: .09em solid currentColor; }
+.mc-mix { display: inline-flex; align-items: center; white-space: nowrap; }
+.mc-mix > .mc-fr { margin-left: .06em; }
+.mc-q.frq { line-height: 1.3; }
+.mc-hint .mc-fr, .mc-msg .mc-fr, .mc-wrong .mc-fr { font-size: .95em; }
+.mc-hint, .mc-wrong { line-height: 2.1; }
+.mc-fin { display: inline-flex; align-items: center; gap: 10px; margin: 4px 0; }
+.mc-fstack { display: inline-flex; flex-direction: column; align-items: center; gap: 6px; }
+.mc-fbar { display: block; width: 100%; min-width: 3.2em; height: 5px; border-radius: 3px; background: #3b2d22; }
+.mc-box { min-width: 2.6em; height: 1.55em; padding: 0 .2em; font-size: clamp(1.7rem, 5vw, 2.3rem); font-weight: 900; font-family: inherit; color: #3b2d22; border: 3px dashed #cdb6f0; border-radius: 14px; background: #fff; cursor: pointer; touch-action: manipulation; line-height: 1.4; }
+.mc-box.w { min-width: 2.2em; height: 2.2em; }
+.mc-box:empty::before { content: attr(data-ph); font-size: .42em; font-weight: 700; color: #b9a8cf; }
+.mc-box.on { border-style: solid; border-color: #8a5cd6; background: #fbf7ff; box-shadow: 0 0 0 4px #e6d9fb; }
+.mc-key { touch-action: manipulation; }
+.mc-key.nextk { font-size: 1.05rem; background: #f3edff; border-color: #cdb6f0; color: #5b3aa0; }
+.mc-key.ok.wide { grid-column: span 3; }
+
 .mc-wrong { margin: 10px auto 0; max-width: 520px; text-align: left; background: #fff5f2; border-radius: 12px; padding: 8px 12px; }
 .ty-stars-big { font-size: 2.4rem; color: #f0a800; letter-spacing: .15em; margin: 4px 0 8px; }
 .ty-result-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; max-width: 620px; margin: 8px auto 12px; }

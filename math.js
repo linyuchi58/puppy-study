@@ -1,4 +1,4 @@
-// 《汪汪小精靈 學習小伙伴》🧮 心算挑戰（v3.10.0）
+// 《汪汪小精靈 學習小伙伴》🧮 心算挑戰（v3.10.0；v3.17.0 分數題改上下排、可填帶分數）
 // 參考老師的《星際防禦：心算雷射戰 v2.0》的出題規則和「💡 思考提示」，改成自己挑課程的自我挑戰：
 //   ・課程地圖：依台灣國小數學（108 課綱）整理，可以自由挑課程
 //   ・一回 10 題、計時；答錯會出現 💡 提示，再答一次
@@ -19,6 +19,75 @@
   const lcm = (a, b) => a / gcd(a, b) * b;
   const fmt = n => String(Math.round(n * 1000) / 1000);           // 小數去掉多餘的 0
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  // ── v3.17.0：分數題（上下排顯示、帶分數作答）──
+  // 題目文字裡帶分數寫成「2又1/3」、分數寫成「1/3」；畫面上自動排成上下兩排
+  const fr = (n, d) => { const g = gcd(Math.abs(n), d) || 1; return { n: n / g, d: d / g }; };
+  const fAdd = (x, y) => fr(x.n * y.d + y.n * x.d, x.d * y.d);
+  const fSub = (x, y) => fr(x.n * y.d - y.n * x.d, x.d * y.d);
+  function mixStr(n, d) {           // 約分後的寫法：大於 1 寫帶分數、整數寫整數
+    const f = fr(n, d), w = Math.floor(f.n / f.d), r = f.n % f.d;
+    if (!r) return String(w);
+    return w ? `${w}又${r}/${f.d}` : `${r}/${f.d}`;
+  }
+  function impStr(n, d) { const f = fr(n, d); return f.d === 1 ? String(f.n) : `${f.n}/${f.d}`; }
+  // 題目上的一項：k＝'p' 真分數、'i' 假分數、'm' 帶分數、'w' 整數；n/d 是沒約分的值
+  const T = (k, n, d) => ({ k, n, d });
+  const Mx = (w, r, d) => (w ? T('m', w * d + r, d) : T('p', r, d));
+  function term(t) { if (t.k === 'w') return String(t.n / t.d); if (t.k === 'm') { const w = Math.floor(t.n / t.d); return `${w}又${t.n - w * t.d}/${t.d}`; } return `${t.n}/${t.d}`; }
+  function termAt(t, L) {          // 通分成分母 L 的寫法
+    const k = L / t.d;
+    if (t.k === 'w') return String(t.n / t.d);
+    if (t.k === 'm') { const w = Math.floor(t.n / t.d); return `${w}又${(t.n - w * t.d) * k}/${L}`; }
+    return `${t.n * k}/${L}`;
+  }
+  function fracQ(terms, ops, hint, extra) {
+    let v = { n: terms[0].n, d: terms[0].d };
+    ops.forEach((op, i) => { v = op === '+' ? fAdd(v, terms[i + 1]) : fSub(v, terms[i + 1]); });
+    const q = terms.map((t, i) => (i ? (ops[i - 1] === '+' ? ' ＋ ' : ' － ') : '') + term(t)).join('') + ' ＝ ？';
+    return Object.assign({ q, a: mixStr(v.n, v.d), fr: true, v: fr(v.n, v.d), hint }, extra || {});
+  }
+  const fv = t => t.n / t.d;
+  // 異分母：通分提示
+  function tfHint(A, B, op, more) {
+    const L = lcm(A.d, B.d);
+    return `通分：${A.d} 和 ${B.d} 的最小公倍數是 ${L}，${term(A)} ＝ ${termAt(A, L)}，${term(B)} ＝ ${termAt(B, L)}，再把分子${op === '+' ? '相加' : '相減'}` + (more || '');
+  }
+  function mixHint(op) { return op === '+' ? '（分數部分超過 1，就進位到整數）' : '（分數部分不夠減，就從整數借 1）'; }
+  // 異分母兩個分母：rel＝'mul' 倍數關係、'gen' 要找最小公倍數
+  function twoDen(rel, maxL) {
+    if (rel === 'mul') { const a = pick([2, 3, 4, 5, 6]), k = until(() => pick([2, 3]), k => a * k <= 12); const b = a * k; return R(0, 1) ? [a, b] : [b, a]; }
+    return until(() => [R(2, 9), R(2, 9)], ([a, b]) => a !== b && a % b && b % a && lcm(a, b) <= maxL);
+  }
+  // 兩項加減（減法時大的在前），回傳題目
+  function twoTermQ(A, B, hintFn) {
+    let op = R(0, 1) ? '+' : '-';
+    if (op === '-' && Math.abs(fv(A) - fv(B)) < 1e-9) op = '+';
+    if (op === '-' && fv(A) < fv(B)) { const t = A; A = B; B = t; }
+    return fracQ([A, B], [op], hintFn(A, B, op));
+  }
+  function fracHtml(s) {           // 文字裡的分數 → 上下排
+    const st = (n, d) => `<span class="mc-fr"><span>${n}</span><span>${d}</span></span>`;
+    return esc(s).replace(/(\d+)又(\d+)\/(\d+)/g, (_, w, n, d) => `<span class="mc-mix">${w}${st(n, d)}</span>`).replace(/(\d+)\/(\d+)/g, (_, n, d) => st(n, d));
+  }
+  // 判斷分數答案：f＝{w,n,d}（字串）。skip＝格式問題（不算答錯）
+  function judgeFrac(f, q) {
+    const hasW = f.w !== '', hasN = f.n !== '', hasD = f.d !== '';
+    if (!hasW && !hasN && !hasD) return { skip: '' };
+    if (hasN !== hasD) return { skip: hasN ? '分母還沒填喔' : '分子還沒填喔' };
+    const w = hasW ? +f.w : 0;
+    let n = 0, d = 1;
+    if (hasN) { n = +f.n; d = +f.d; if (!d) return { skip: '分母不能是 0 喔' }; }
+    if (hasW && w && hasN && n >= d) return { skip: '帶分數後面的分數要比 1 小（分子要比分母小）' };
+    const same = (w * d + n) * q.v.d === q.v.n * d;
+    if (!same) return { ok: false };
+    const whole = q.v.n % q.v.d === 0;
+    if (q.form === 'mixed' && !whole && (!w || !n)) return { skip: '數字對了！這題要寫成「帶分數」（整數格也要填）' };
+    if (q.form === 'improper' && hasW && w) return { skip: '數字對了！這題要寫成「假分數」（整數格空白，只填分子和分母）' };
+    let note = '';
+    if (hasN && n && gcd(n, d) > 1) note = `還可以約分成 ${hasW && w ? mixStr(w * d + n, d) : impStr(n, d)}`;
+    return { ok: true, note };
+  }
 
   // ── 💡 思考提示（改寫自《心算雷射戰》）──
   function hintAdd(a, b) {
@@ -123,7 +192,16 @@
     { id: 'n1', g: 'num', name: '萬、千、百的換算', gr: 4, t: 6, gen: () => { const k = R(1, 3); if (k === 1) { const x = R(2, 9); return { q: `${x} 萬 ＝ □ 千`, a: String(x * 10), hint: '1 萬 ＝ 10 千' }; } if (k === 2) { const x = R(2, 9) * 10; return { q: `${x} 千 ＝ □ 萬`, a: String(x / 10), hint: '10 千 ＝ 1 萬' }; } const x = R(2, 9), y = R(1, 9); return { q: `${x} 萬 ${y} 千 ＝ □`, a: String(x * 10000 + y * 1000), hint: `${x} 萬是 ${x}0000，${y} 千是 ${y}000` }; } },
     { id: 'n2', g: 'num', name: '四捨五入（概數）', gr: 4, t: 6, gen: () => { const place = pick([['十', 10], ['百', 100], ['千', 1000]]); const n = until(() => R(place[1] * 2 + 1, place[1] * 99 - 1), v => v % place[1] !== 0); const ans = Math.round(n / place[1]) * place[1]; return { q: `${n} 四捨五入到${place[0]}位 ＝ ？`, a: String(ans), hint: `看${place[0]}位的下一位：${Math.floor(n % place[1] / (place[1] / 10))}，4 以下捨去、5 以上進位` }; } },
     // 分數、小數、百分率
-    { id: 'f1', g: 'frac', name: '同分母分數加減', gr: 3, t: 6, gen: () => { const d = R(5, 12); if (R(0, 1)) { const a = R(1, d - 2), b = R(1, d - 1 - a); return { q: `${a}/${d} ＋ ${b}/${d} ＝ ？`, a: `${a + b}/${d}`, hint: `分母一樣，分子相加：${a} ＋ ${b}，分母還是 ${d}（答案打成 ?/${d}）` }; } const a = R(3, d - 1), b = R(1, a - 1); return { q: `${a}/${d} － ${b}/${d} ＝ ？`, a: `${a - b}/${d}`, hint: `分母一樣，分子相減：${a} － ${b}，分母還是 ${d}（答案打成 ?/${d}）` }; } },
+    { id: 'f1', g: 'frac', name: '同分母分數加減', gr: 3, t: 8, gen: () => { const d = R(5, 12); if (R(0, 1)) { const a = R(1, d - 2), b = R(1, d - 1 - a); return fracQ([T('p', a, d), T('p', b, d)], ['+'], `分母一樣，分子相加：${a} ＋ ${b}，分母還是 ${d}`); } const a = R(3, d - 1), b = R(1, a - 1); return fracQ([T('p', a, d), T('p', b, d)], ['-'], `分母一樣，分子相減：${a} － ${b}，分母還是 ${d}`); } },
+    { id: 'f7', g: 'frac', name: '同分母加減（超過 1：假分數、帶分數）', gr: 4, t: 10, gen: () => { const d = R(3, 9); if (R(0, 2)) { const [a, b] = until(() => [R(1, d - 1), R(1, d - 1)], ([a, b]) => a + b > d); return fracQ([T('p', a, d), T('p', b, d)], ['+'], `分母一樣，分子相加：${a} ＋ ${b}，分母還是 ${d}；分子比分母大，可以寫成假分數，也可以化成帶分數`); } const n = until(() => R(d + 1, 3 * d - 1), n => n % d !== 0), b = R(1, d - 1); return fracQ([T('i', n, d), T('p', b, d)], ['-'], `分母一樣，分子相減：${n} － ${b}，分母還是 ${d}`); } },
+    { id: 'f8', g: 'frac', name: '假分數和帶分數互換', gr: 4, t: 8, gen: () => { const d = R(2, 9), w = R(1, 5), r = until(() => R(1, d - 1), r => gcd(r, d) === 1), n = w * d + r; if (R(0, 1)) return { q: `${n}/${d} ＝ ？（寫成帶分數）`, a: `${w}又${r}/${d}`, fr: true, v: fr(n, d), form: 'mixed', hint: `算 ${n} ÷ ${d}：商是整數，餘數是分子，分母還是 ${d}` }; return { q: `${w}又${r}/${d} ＝ ？（寫成假分數）`, a: `${n}/${d}`, fr: true, v: fr(n, d), form: 'improper', hint: `分子 ＝ 整數 × 分母 ＋ 分子 ＝ ${w} × ${d} ＋ ${r}，分母還是 ${d}` }; } },
+    { id: 'f9', g: 'frac', name: '帶分數加減（同分母，不用進位退位）', gr: 4, t: 12, gen: () => { const d = R(3, 9); if (R(0, 1)) { const w1 = R(1, 5), w2 = R(1, 4), n1 = R(1, d - 2), n2 = R(1, d - 1 - n1); return fracQ([Mx(w1, n1, d), Mx(w2, n2, d)], ['+'], `整數加整數：${w1} ＋ ${w2}；分數加分數：分子 ${n1} ＋ ${n2}，分母還是 ${d}`); } const w1 = R(2, 6), w2 = R(1, w1 - 1), n1 = R(2, d - 1), n2 = R(1, n1 - 1); return fracQ([Mx(w1, n1, d), Mx(w2, n2, d)], ['-'], `整數減整數：${w1} － ${w2}；分數減分數：分子 ${n1} － ${n2}，分母還是 ${d}`); } },
+    { id: 'f10', g: 'frac', name: '帶分數加減（同分母，要進位退位）', gr: 4, t: 15, gen: () => { const d = R(3, 9); if (R(0, 1)) { const w1 = R(1, 4), w2 = R(1, 4), [n1, n2] = until(() => [R(1, d - 1), R(1, d - 1)], ([a, b]) => a + b > d); return fracQ([Mx(w1, n1, d), Mx(w2, n2, d)], ['+'], `整數：${w1} ＋ ${w2}；分數：分子 ${n1} ＋ ${n2} 超過 ${d} 了，${d}/${d} ＝ 1，要進位到整數`); } const w1 = R(2, 6), w2 = R(0, w1 - 1), [n1, n2] = until(() => [R(1, d - 1), R(1, d - 1)], ([a, b]) => a < b); return fracQ([Mx(w1, n1, d), Mx(w2, n2, d)], ['-'], `${n1}/${d} 不夠減 ${n2}/${d}，從整數借 1：${w1}又${n1}/${d} ＝ ${w1 - 1}又${n1 + d}/${d}，再減`); } },
+    { id: 'f11', g: 'frac', name: '整數減分數、帶分數', gr: 4, t: 12, gen: () => { const d = R(2, 9), W = R(1, 5), n = R(1, d - 1); const B = W > 1 && R(0, 1) ? Mx(R(1, W - 1), n, d) : T('p', n, d); return fracQ([T('w', W * d, d), B], ['-'], `把 1 看成 ${d}/${d}：${W} ＝ ${W > 1 ? (W - 1) + '又' : ''}${d}/${d}，再減`); } },
+    { id: 'f12', g: 'frac', name: '異分母加減（分母是倍數關係）', gr: 5, t: 15, gen: () => { const [d1, d2] = twoDen('mul'); return twoTermQ(T('p', R(1, d1 - 1), d1), T('p', R(1, d2 - 1), d2), (A, B, op) => tfHint(A, B, op)); } },
+    { id: 'f13', g: 'frac', name: '異分母加減（要找公倍數通分）', gr: 5, t: 18, gen: () => { const [d1, d2] = twoDen('gen', 40); return twoTermQ(T('p', R(1, d1 - 1), d1), T('p', R(1, d2 - 1), d2), (A, B, op) => tfHint(A, B, op)); } },
+    { id: 'f14', g: 'frac', name: '異分母帶分數加減', gr: 5, t: 25, gen: () => { const [d1, d2] = until(() => twoDen(R(0, 1) ? 'mul' : 'gen', 24), ([a, b]) => lcm(a, b) <= 24); return twoTermQ(Mx(R(1, 5), R(1, d1 - 1), d1), Mx(R(0, 4), R(1, d2 - 1), d2), (A, B, op) => tfHint(A, B, op, mixHint(op))); } },
+    { id: 'f15', g: 'frac', name: '分數加減綜合（帶分數、假分數、三個數）', gr: 6, t: 30, gen: () => until(() => { const ds = pick([[2, 4, 8], [2, 3, 6, 12], [2, 5, 10], [3, 6, 9], [2, 3, 4, 6]]); const mk = () => { const d = pick(ds), k = pick(['p', 'i', 'm']); if (k === 'p') return T('p', R(1, d - 1), d); if (k === 'i') return T('i', until(() => R(d + 1, 3 * d - 1), n => n % d !== 0), d); return Mx(R(1, 3), R(1, d - 1), d); }; const ts = [mk(), mk(), mk()], ops = [pick(['+', '-']), pick(['+', '-'])]; const L = ts.reduce((l, t) => lcm(l, t.d), 1); const v1 = ops[0] === '+' ? fv(ts[0]) + fv(ts[1]) : fv(ts[0]) - fv(ts[1]); const v2 = ops[1] === '+' ? v1 + fv(ts[2]) : v1 - fv(ts[2]); const q = fracQ(ts, ops, `從左到右算。先通分成分母 ${L}：${ts.map(t => termAt(t, L)).join('、')}；帶分數可以先化成假分數再算`); q._ok = v1 > 1e-9 && v2 > 1e-9 && new Set(ts.map(t => t.d)).size > 1; return q; }, q => q._ok) },
     { id: 'f2', g: 'frac', name: '分數化小數（分母 2、4、5、10、100）', gr: 4, t: 5, gen: () => pick([[1, 2], [1, 4], [3, 4], [1, 5], [2, 5], [3, 5], [4, 5], [1, 10], [3, 10], [7, 10], [9, 10], [7, 100], [25, 100], [43, 100]]).reduce((n, d) => ({ q: `${n}/${d} ＝ □（用小數）`, a: fmt(n / d), hint: d === 10 || d === 100 ? `分母 ${d}：${n} 個 ${d === 10 ? '0.1' : '0.01'}` : `把分母變成 10 或 100：${n}/${d} ＝ ${n * (100 / d) % 10 === 0 ? n * (10 / d) + '/10' : n * (100 / d) + '/100'}` })) },
     { id: 'f3', g: 'frac', name: '一位小數加減', gr: 4, t: 6, gen: () => { const a = R(11, 69), b = R(11, 59); if (R(0, 1)) return { q: `${fmt(a / 10)} ＋ ${fmt(b / 10)} ＝ ？`, a: fmt((a + b) / 10), hint: `當成 ${a} ＋ ${b} ＝ ${a + b}，再點上小數點` }; const big = Math.max(a, b) + 12, small = Math.min(a, b); return { q: `${fmt(big / 10)} － ${fmt(small / 10)} ＝ ？`, a: fmt((big - small) / 10), hint: `當成 ${big} － ${small} ＝ ${big - small}，再點上小數點` }; } },
     { id: 'f4', g: 'frac', name: '小數×整數', gr: 5, t: 6, gen: () => { const a = pick([0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 1.2, 1.5, 2.5, 0.25]), b = R(2, 9); return { q: `${a} × ${b} ＝ ？`, a: fmt(a * b), hint: `先當整數算：${String(a).replace('0.', '').replace('.', '')} × ${b}，再點上小數點（${String(a).split('.')[1].length} 位小數）` }; } },
@@ -226,7 +304,7 @@
       seen.add(q.q); qs.push(q);
     }
     while (qs.length < ROUND_N) qs.push(c.gen());
-    run = { c, qs, i: 0, input: '', tries: 0, firstOk: 0, fixed: 0, wrong: 0, fast: 0, started: Date.now(), qAt: Date.now(), activeMs: 0, msg: '', hint: '', reveal: '', lock: false, wrongList: [] };
+    run = { c, qs, i: 0, input: '', fin: { w: '', n: '', d: '' }, box: 'n', tries: 0, firstOk: 0, fixed: 0, wrong: 0, fast: 0, started: Date.now(), qAt: Date.now(), activeMs: 0, msg: '', hint: '', reveal: '', lock: false, wrongList: [] };
     view = 'play';
     render();
     // 手機上題目在狗狗卡片下面：開始時捲到題目
@@ -239,15 +317,33 @@
     if (!speak || !run || !window.speechSynthesis) return;
     try {
       const q = cur();
-      const t = (q.say || q.q).replace(/＝ ？$/, '等於多少').replace(/□/g, '多少').replace(/×/g, '乘').replace(/÷/g, '除以').replace(/＋/g, '加').replace(/－/g, '減').replace(/＝/g, '等於').replace(/(\d+)\/(\d+)/g, '$2分之$1');
+      const t = (q.say || q.q).replace(/＝ ？$/, '等於多少').replace(/□/g, '多少').replace(/×/g, '乘').replace(/÷/g, '除以').replace(/＋/g, '加').replace(/－/g, '減').replace(/＝/g, '等於').replace(/(\d+)又(\d+)\/(\d+)/g, '$1又$3分之$2').replace(/(\d+)\/(\d+)/g, '$2分之$1').replace(/？/g, '多少');
       window.speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(t);
       u.lang = 'zh-TW'; u.rate = 1;
       window.speechSynthesis.speak(u);
     } catch (e) { /* 忽略 */ }
   }
+  const BOXES = ['w', 'n', 'd'];
+  function typeFrac(k) {
+    const f = run.fin;
+    if (k === 'enter') return submit(true);
+    if (/^box:[wnd]$/.test(k)) { run.box = k.slice(4); paintInput(); return 'box'; }
+    if (k === 'next') { run.box = BOXES[(BOXES.indexOf(run.box) + 1) % 3]; paintInput(); return 'box'; }
+    if (k === 'prev') { run.box = BOXES[(BOXES.indexOf(run.box) + 2) % 3]; paintInput(); return 'box'; }
+    if (k === '/') { run.box = 'd'; paintInput(); return 'box'; }
+    if (k === 'back') {
+      if (!f[run.box] && run.box !== 'w') run.box = BOXES[BOXES.indexOf(run.box) - 1];
+      f[run.box] = f[run.box].slice(0, -1); paintInput(); return 'back';
+    }
+    if (!/^[0-9]$/.test(k) || f[run.box].length >= 3) return 'ignored';
+    f[run.box] += k;
+    paintInput();
+    return 'typed';
+  }
   function typeKey(k) {
     if (view !== 'play' || !run || run.lock) return 'ignored';
+    if (cur().fr) return typeFrac(k);
     if (k === 'back') { run.input = run.input.slice(0, -1); paintInput(); return 'back'; }
     if (k === 'enter') return submit(true);
     if (!/^[0-9./]$/.test(k)) return 'ignored';
@@ -260,40 +356,45 @@
   }
   function submit(byEnter) {
     const q = cur();
-    if (!run.input) return 'ignored';
+    let jf = null;
+    if (q.fr) {
+      jf = judgeFrac(run.fin, q);
+      if (jf.skip !== undefined) { if (jf.skip) { run.msg = jf.skip; paintAll(); } return 'ignored'; }
+    } else if (!run.input) return 'ignored';
     const now = Date.now();
-    if (sameAns(run.input, q.a)) {
+    if (jf ? jf.ok : sameAns(run.input, q.a)) {
       const spent = now - run.qAt;
       run.activeMs += Math.min(60000, spent);
       if (run.tries === 0) { run.firstOk += 1; if (spent < FAST_MS) run.fast += 1; } else run.fixed += 1;
       run.lock = true; run.msg = run.tries === 0 ? pick(['✔ 答對了！', '✔ 好厲害！', '✔ 正確！']) : '✔ 訂正成功！';
+      if (jf && jf.note) run.msg += '（' + jf.note + '）';
       paintAll();
-      setTimeout(next, run.tries === 0 ? 350 : 700);
+      setTimeout(next, jf && jf.note ? 1600 : run.tries === 0 ? 350 : 700);
       return 'ok';
     }
-    if (!byEnter && normAns(run.input).length < q.a.length) return 'typed';
+    if (!jf && !byEnter && normAns(run.input).length < q.a.length) return 'typed';
     run.tries += 1;
     if (run.tries === 1) {
       run.hint = q.hint || '再看一次題目，一步一步算';
       run.msg = '再想一想，看下面的 💡 提示';
-      run.input = '';
+      run.input = ''; run.fin = { w: '', n: '', d: '' }; run.box = 'n';
       paintAll();
       return 'miss';
     }
     // 第二次也錯：公布答案，換下一題
     run.wrong += 1;
     run.activeMs += Math.min(60000, now - run.qAt);
-    run.wrongList.push(`${q.q.replace(/ ？$/, '')} ${q.a}`);
-    run.reveal = `答案是 ${q.a}`;
+    run.wrongList.push(`${q.q.replace(/ ？(（[^）]*）)?$/, '')} ${q.a}`);
+    run.reveal = `答案是 ${q.a}` + (q.fr && q.v.d > 1 && q.v.n > q.v.d && !q.form ? `（也可以寫成 ${q.v.n}/${q.v.d}）` : '');
     run.msg = '沒關係，記起來就好';
     run.lock = true;
     paintAll();
-    setTimeout(next, 1800);
+    setTimeout(next, q.fr ? 2600 : 1800);
     return 'wrong';
   }
   function next() {
     if (!run) return;
-    run.i += 1; run.input = ''; run.tries = 0; run.msg = ''; run.hint = ''; run.reveal = ''; run.lock = false; run.qAt = Date.now();
+    run.i += 1; run.input = ''; run.fin = { w: '', n: '', d: '' }; run.box = 'n'; run.tries = 0; run.msg = ''; run.hint = ''; run.reveal = ''; run.lock = false; run.qAt = Date.now();
     if (run.i >= ROUND_N) { finish(); return; }
     render();
     sayQ();
@@ -372,13 +473,14 @@
     return `
       <div class="card-box mc-play">
         <div class="mc-top"><b>${esc(run.c.name)}</b><span class="mc-dots">${dots}</span><span class="mc-time" id="mcTime">0 秒</span><button class="btn btn-soft mc-quit" id="mcQuit">結束</button></div>
-        <div class="mc-q" id="mcQ">${esc(q.q)}</div>
-        <div class="mc-in" id="mcIn"></div>
+        <div class="mc-q${q.fr ? ' frq' : ''}" id="mcQ">${fracHtml(q.q)}</div>
+        ${q.fr ? `<div class="mc-fin" id="mcFin"><button class="mc-box w" data-k="box:w" data-ph="整數"></button>
+          <span class="mc-fstack"><button class="mc-box n" data-k="box:n" data-ph="分子"></button><span class="mc-fbar"></span><button class="mc-box d" data-k="box:d" data-ph="分母"></button></span></div>` : '<div class="mc-in" id="mcIn"></div>'}
         <div class="mc-msg" id="mcMsg"></div>
         <div class="mc-hint" id="mcHint" hidden></div>
-        <div class="mc-pad">${['7', '8', '9', '4', '5', '6', '1', '2', '3', '0', '.', '/'].map(k => `<button class="mc-key" data-k="${k}">${k}</button>`).join('')}
-          <button class="mc-key back" data-k="back">⌫</button><button class="mc-key ok" data-k="enter">✔ 確定</button></div>
-        <p class="section-sub mc-tip">可以用鍵盤打數字，按 Enter 確定。分數打成 3/7，小數打成 2.5。</p>
+        <div class="mc-pad">${(q.fr ? ['7', '8', '9', '4', '5', '6', '1', '2', '3', '0'] : ['7', '8', '9', '4', '5', '6', '1', '2', '3', '0', '.', '/']).map(k => `<button class="mc-key" data-k="${k}">${k}</button>`).join('')}
+          ${q.fr ? '<button class="mc-key nextk" data-k="next">➜ 下一格</button>' : ''}<button class="mc-key back" data-k="back">⌫</button><button class="mc-key ok${q.fr ? ' wide' : ''}" data-k="enter">✔ 確定</button></div>
+        <p class="section-sub mc-tip">${q.fr ? '點一下格子就能換格（或按「➜ 下一格」）。<b>帶分數</b>：三格都填；<b>假分數、真分數</b>：整數格空白；答案是整數就只填整數格。<br>電腦：Tab 或空白鍵換格、/ 跳到分母、Enter 確定。' : '可以用鍵盤打數字，按 Enter 確定。分數打成 3/7，小數打成 2.5。'}</p>
       </div>`;
   }
   function resultHtml() {
@@ -396,19 +498,23 @@
         <p class="ty-note">${esc(r.note)}</p>
         ${r.xp ? `<p class="section-sub">獲得 +${r.xp} 經驗值${r.gotStars ? `、+${r.gotStars}⭐` : ''}</p>` : ''}
         ${r.treat ? `<p class="ty-treat">🦴 認真學習滿 5 分鐘！狗狗吃到骨頭餅乾（飽足 +15、親密度 +2）</p>` : ''}
-        ${r.wrongList.length ? `<div class="mc-wrong"><b>📝 記起來：</b>${r.wrongList.map(w => `<div>${esc(w)}</div>`).join('')}</div>` : ''}
+        ${r.wrongList.length ? `<div class="mc-wrong"><b>📝 記起來：</b>${r.wrongList.map(w => `<div>${fracHtml(w)}</div>`).join('')}</div>` : ''}
         <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:10px;">
           <button class="btn btn-soft" id="mcHome">回到課程</button>
           <button class="btn btn-orange" id="mcAgain">🔁 再挑戰一次</button>
         </div>
       </div>`;
   }
-  function paintInput() { const el = pane && pane.querySelector('#mcIn'); if (el) el.textContent = run && run.input ? run.input : ' '; }
+  function paintInput() {
+    const el = pane && pane.querySelector('#mcIn'); if (el) el.textContent = run && run.input ? run.input : ' ';
+    const fe = pane && pane.querySelector('#mcFin');
+    if (fe && run) BOXES.forEach(b => { const x = fe.querySelector('.mc-box.' + b); if (x) { x.textContent = run.fin[b]; x.classList.toggle('on', run.box === b && !run.lock); } });
+  }
   function paintAll() {
     if (!pane || !run) return;
     paintInput();
-    const m = pane.querySelector('#mcMsg'); if (m) { m.textContent = run.reveal ? `${run.msg}　${run.reveal}` : run.msg; m.className = 'mc-msg' + (run.lock && !run.reveal ? ' ok' : run.reveal ? ' bad' : run.msg ? ' warn' : ''); }
-    const h = pane.querySelector('#mcHint'); if (h) { h.hidden = !run.hint; h.textContent = run.hint ? '💡 ' + run.hint : ''; }
+    const m = pane.querySelector('#mcMsg'); if (m) { m.innerHTML = fracHtml(run.reveal ? `${run.msg}　${run.reveal}` : run.msg); m.className = 'mc-msg' + (run.lock && !run.reveal ? ' ok' : run.reveal ? ' bad' : run.msg ? ' warn' : ''); }
+    const h = pane.querySelector('#mcHint'); if (h) { h.hidden = !run.hint; h.innerHTML = run.hint ? fracHtml('💡 ' + run.hint) : ''; }
   }
   function render() {
     if (!pane) return;
@@ -417,7 +523,7 @@
     pane.querySelectorAll('[data-course]').forEach(b => b.addEventListener('click', () => startCourse(b.dataset.course)));
     pane.querySelectorAll('details.mc-group').forEach(dt => dt.addEventListener('toggle', () => { if (dt.open) openGroup = dt.dataset.g; }));
     const sp = pane.querySelector('#mcSpeak'); if (sp) sp.addEventListener('change', () => { speak = sp.checked; try { localStorage.setItem('puppy_math_speak', speak ? '1' : '0'); } catch (e) { /* 忽略 */ } });
-    pane.querySelectorAll('.mc-key').forEach(b => b.addEventListener('click', ev => { ev.preventDefault(); typeKey(b.dataset.k); }));
+    pane.querySelectorAll('.mc-key, .mc-box').forEach(b => b.addEventListener('click', ev => { ev.preventDefault(); typeKey(b.dataset.k); }));
     on('#mcQuit', () => { if (confirm('要結束這一回嗎？這一回不會記錄。')) { run = null; view = 'home'; render(); } });
     on('#mcHome', () => { view = 'home'; render(); });
     on('#mcAgain', () => startCourse(last.c.id));
@@ -432,6 +538,8 @@
     else if (ev.key === '.' || ev.key === '/' ) k = ev.key;
     else if (ev.key === 'Backspace') k = 'back';
     else if (ev.key === 'Enter') k = 'enter';
+    else if (cur() && cur().fr && (ev.key === 'Tab' || ev.key === ' ' || ev.key === 'ArrowRight')) k = ev.shiftKey && ev.key === 'Tab' ? 'prev' : 'next';
+    else if (cur() && cur().fr && ev.key === 'ArrowLeft') k = 'prev';
     if (!k) return;
     ev.preventDefault();
     typeKey(k);
@@ -448,6 +556,6 @@
     show() { render(); },
     hide() { },
     COURSES, GROUPS,
-    _t: { startCourse, typeKey, normAns, sameAns, data, today, stars, tooEasy, maxMasteredGrade, BY_ID, run: () => run, last: () => last, view: () => view, DAY_XP_CAP, REPLAY_PER_DAY, finishNow: () => finish(), setView: v => { view = v; } }
+    _t: { startCourse, typeKey, normAns, sameAns, judgeFrac, fracHtml, mixStr, fr, data, today, stars, tooEasy, maxMasteredGrade, BY_ID, run: () => run, last: () => last, view: () => view, DAY_XP_CAP, REPLAY_PER_DAY, finishNow: () => finish(), setView: v => { view = v; } }
   };
 })();
