@@ -1,8 +1,10 @@
 // 《汪汪小精靈 學習小伙伴》老師蓋章：收成績頁（teacher.html）的老師端（v3.11.0）
 // 老師用信箱驗證（要在試算表「老師名單」上）→ 拿到老師代碼（投影給學生加入）和蓋章金鑰（只存在這支手機）。
-// 掃學生「請老師蓋章」的 QR → 算出 2 位數，手機自動唸「D7，請輸入 四 七」（+1～+10 每一種星星數各有一組不重複的 2 位數，學生改不了）。
+// 掃學生「請老師蓋章」的 QR → 算出 3 位數，手機自動唸「D7，請輸入 四 七 二」（+1～+10 每一種星星數各有一組不重複的 3 位數，學生改不了）。
 // v3.11.1：老師 11-25 決定從 6 位數改成 2 位數＋自動唸，學生一天最多試 3 次。
-// 學生 QR：PTS1.<老師指紋>.<裝置>.<日期 yyMMdd>.<亂數>.<年-班-座號，可以空白>
+// v3.22.1：老師 11-28 決定改 3 位數（亂猜一次約 1/100），學生錯 5 次鎖 5 小時。
+// 學生 QR：PTS2.<老師指紋>.<裝置>.<日期 yyMMdd>.<亂數>.<年-班-座號，可以空白>（3 位數）
+//          PTS1.…（v3.22.0 以前的學生端，一樣的格式，給 2 位數；過渡期還收）
 (function () {
   'use strict';
   const TEST = /[?&]apptest=1/.test(location.search);
@@ -20,14 +22,15 @@
 
   // 和學生端（app.js）同一套算法，兩邊要一起改
   const fpOf = key => S.code(key, 'tfp');
-  // +1～+10 各一組 2 位數，彼此不重複（重複就換下一組），知道其中一組也推不出別組
-  function codesOf(key, dev, day, nonce) {
+  // +1～+10 各一組 3 位數（len=2 是舊版 PTS1 學生端），彼此不重複（重複就換下一組），知道其中一組也推不出別組
+  function codesOf(key, dev, day, nonce, len) {
+    const L = len === 2 ? 2 : 3, tagName = L === 2 ? 'tstamp2' : 'tstamp3';
     const out = [];
-    for (let n = 1; n <= 10; n++) for (let j = 0; ; j++) { const c = S.code(key, ['tstamp2', dev, day, nonce, n, j].join('|')).slice(-2); if (!out.includes(c)) { out.push(c); break; } }
+    for (let n = 1; n <= 10; n++) for (let j = 0; ; j++) { const c = S.code(key, [tagName, dev, day, nonce, n, j].join('|')).slice(-L); if (!out.includes(c)) { out.push(c); break; } }
     return out;
   }
-  const codeOf = (key, dev, day, nonce, n) => codesOf(key, dev, day, nonce)[n - 1];
-  // 唸出來：「D7，請輸入 四 七」
+  const codeOf = (key, dev, day, nonce, n, len) => codesOf(key, dev, day, nonce, len)[n - 1];
+  // 唸出來：「D7，請輸入 四 七 二」
   const ZH = '零一二三四五六七八九';
   if (typeof st.speak !== 'boolean') st.speak = true;
   function sayCode(row) {
@@ -121,7 +124,7 @@
         <ol class="note" style="margin:4px 0 8px 1.2em;padding:0;line-height:1.8;">
           <li>學生在「自我打卡」頁按「👍 請老師蓋章」，螢幕出現 QR 和號碼牌。</li>
           <li>這裡選好要給幾顆星，按「📷 開始掃描」，一次可以掃好幾台。</li>
-          <li>手機會<b>唸出</b>「號碼牌，請輸入 2 位數」，下面也會列出來，學生自己打進去。每位學生一天一次。</li>
+          <li>手機會<b>唸出</b>「號碼牌，請輸入 3 個數字」，下面也會列出來，學生自己打進去。每位學生一天一次。</li>
         </ol>
         <div class="row" style="align-items:center;">
           <b>這次給：</b>
@@ -178,7 +181,7 @@
     bar.innerHTML = `<div class="row" style="align-items:center;margin:0;"><b>👍 老師蓋章：這次給</b>
       <select id="tsBarN">${Array.from({ length: 10 }, (_, i) => `<option value="${i + 1}" ${st.stars === i + 1 ? 'selected' : ''}>+${i + 1} ⭐</option>`).join('')}</select>
       <label style="font-weight:800;"><input type="checkbox" id="tsBarSpeak" ${st.speak ? 'checked' : ''}> 🔊 唸出</label>
-      <span class="note">掃到學生的蓋章 QR，手機會唸出 2 位數，也列在下面</span></div>
+      <span class="note">掃到學生的蓋章 QR，手機會唸出 3 個數字，也列在下面</span></div>
       <div class="ts-list">${listHtml(todays.slice(-8))}</div>`;
     $('tsBarN').onchange = ev => { st.stars = +ev.target.value; save(); };
     $('tsBarSpeak').onchange = ev => { st.speak = ev.target.checked; save(); if (st.speak) unlockSpeech(); };
@@ -223,11 +226,12 @@
     const big = $('tsBig'); big.textContent = st.tcode.slice(0, 3) + ' ' + st.tcode.slice(3); big.hidden = false;
   }
 
-  // ── 掃到 QR：是不是學生的蓋章 QR？是的話算出 2 位數、唸出來 ──
+  // ── 掃到 QR：是不是學生的蓋章 QR？是的話算出 3 位數（舊版學生 2 位數）、唸出來 ──
   // 回傳 null（不是蓋章 QR）或 [成功?, 訊息, 一列資料]
   function scan(text) {
     const p = String(text || '').split('.');
-    if (p[0] !== 'PTS1') return null;
+    if (p[0] !== 'PTS1' && p[0] !== 'PTS2') return null;
+    const len = p[0] === 'PTS1' ? 2 : 3;
     if (p.length !== 6 || !/^\d{6}$/.test(p[1]) || !/^[0-9a-f]{6}$/.test(p[2]) || !/^\d{6}$/.test(p[3]) || !/^[0-9a-f]{4}$/.test(p[4])) return [false, '這個蓋章 QR 讀不懂'];
     if (!ready()) return [false, '這支手機還沒設定老師蓋章（到「③ 老師蓋章」設定）'];
     const today = dayStr();
@@ -238,7 +242,7 @@
     row = { day: today, dev: p[2], nonce: p[4], tag, who, at: Date.now() };
     if (p[1] !== st.fp) row.bad = '⚠ 加入的不是你現在的老師代碼，請他重新加入';
     else if (p[3] !== today) row.bad = '⚠ 學生裝置的日期不是今天';
-    else { row.n = st.stars; row.code = codeOf(st.key, p[2], p[3], p[4], st.stars); }
+    else { row.n = st.stars; row.code = codeOf(st.key, p[2], p[3], p[4], st.stars, len); }
     st.log.push(row);
     st.log = st.log.filter(x => x.day >= dayStr(new Date(Date.now() - 7 * 864e5))).slice(-300);
     save();

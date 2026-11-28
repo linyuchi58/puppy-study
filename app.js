@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.22.0';
-  const APP_BUILD = '20261128-7';
+  const APP_VERSION = 'v3.22.1';
+  const APP_BUILD = '20261128-8';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
@@ -199,7 +199,7 @@
         acc_seen: {}
       },
       parent: { key: '', dev: '', paired: '', stamps: {}, tries: {} },
-      tstamp: { name: '', tcode: '', key: '', fp: '', dev: '', joined: '', invalid: false, checked: '', stamps: {}, tries: {}, pending: null }
+      tstamp: { name: '', tcode: '', key: '', fp: '', dev: '', joined: '', invalid: false, checked: '', stamps: {}, tries: {}, fails: 0, lock: 0, pending: null }
     };
   }
 
@@ -301,6 +301,7 @@
     ['name', 'tcode', 'key', 'fp', 'dev', 'joined', 'checked'].forEach(k => { if (typeof base.tstamp[k] !== 'string') base.tstamp[k] = ''; });
     ['stamps', 'tries'].forEach(k => { if (!base.tstamp[k] || typeof base.tstamp[k] !== 'object' || Array.isArray(base.tstamp[k])) base.tstamp[k] = {}; });
     base.tstamp.invalid = !!base.tstamp.invalid;
+    ['fails', 'lock'].forEach(k => { const v = Number(base.tstamp[k]); base.tstamp[k] = isFinite(v) && v > 0 ? v : 0; });
     if (!base.tstamp.pending || typeof base.tstamp.pending !== 'object') base.tstamp.pending = null;
     // v3.12.0 SEL：只記每天拿過幾次星星（沒有心情內容；心情日記在 sel.js 另外存，不上雲端）
     if (!base.selc || typeof base.selc !== 'object' || Array.isArray(base.selc)) base.selc = { days: {} };
@@ -1930,17 +1931,20 @@
   }
 
   // ════════════════════════════════════════════════════════════════════
-  //  v3.11.0 老師蓋章：老師用手機掃學生的 QR，手機唸出 2 位數（v3.11.1 起；+1～+10⭐ 各一組不重複），學生打進來
+  //  v3.11.0 老師蓋章：老師用手機掃學生的 QR，手機唸出 3 位數（v3.22.1 起；v3.11.1～v3.22.0 是 2 位數；+1～+10⭐ 各一組不重複），學生打進來
+//  v3.22.1：錯 5 次鎖 5 小時（t.fails、t.lock），QR 改 PTS2（老師頁看到 PTS1 會給舊的 2 位數）
   //  加入老師要連網（雲端確認老師在「老師名單」上）；之後每天蓋章不用網路。算法和 teacher_stamp.js 一樣。
   // ════════════════════════════════════════════════════════════════════
   const TSTAMP_XP = 5;
   const tsEsc = x => String(x).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const TSTAMP_TRIES = 3;          // 2 位數比較好猜，所以一天只能試 3 次
+  const TSTAMP_TRIES = 5;          // v3.22.1：3 位數，錯 5 次鎖 5 小時（亂猜 5 次約 5% 機會）
+  const TSTAMP_LOCK_MS = 5 * 3600 * 1000;
+  const TSTAMP_LEN = 3;
   const tsFp = key => window.PuppyStamp.code(key, 'tfp');
-  // +1～+10 各一組 2 位數，彼此不重複（和 teacher_stamp.js 的 codesOf 一樣，兩邊要一起改）
+  // +1～+10 各一組 3 位數，彼此不重複（和 teacher_stamp.js 的 codesOf 一樣，兩邊要一起改）
   function tsCodes(key, dev, day, nonce) {
     const out = [];
-    for (let n = 1; n <= 10; n++) for (let j = 0; ; j++) { const c = window.PuppyStamp.code(key, ['tstamp2', dev, day, nonce, n, j].join('|')).slice(-2); if (!out.includes(c)) { out.push(c); break; } }
+    for (let n = 1; n <= 10; n++) for (let j = 0; ; j++) { const c = window.PuppyStamp.code(key, ['tstamp3', dev, day, nonce, n, j].join('|')).slice(-TSTAMP_LEN); if (!out.includes(c)) { out.push(c); break; } }
     return out;
   }
   const tsCode = (key, dev, day, nonce, n) => tsCodes(key, dev, day, nonce)[n - 1];
@@ -1993,24 +1997,36 @@
     if (!t.pending || t.pending.day !== day) { t.pending = { day, nonce: window.PuppyStamp.randomHex(2) }; saveState(); }
     const w = (state.typing && state.typing.who) || {};
     const who = w.g && w.c && w.s ? `${w.g}-${w.c}-${w.s}` : '';
-    return { text: ['PTS1', t.fp, t.dev, day, t.pending.nonce, who].join('.'), tag: tsTag(t.pending.nonce) };
+    return { text: ['PTS2', t.fp, t.dev, day, t.pending.nonce, who].join('.'), tag: tsTag(t.pending.nonce) };
   }
-  // 學生打 2 位數：看是 +1～+10 哪一組
+  // 錯太多次鎖住：回傳還要等幾毫秒（0＝沒鎖）；時間到了自動解鎖、錯誤次數歸零
+  function tsLockLeft() {
+    const t = state.tstamp, now = Date.now();
+    if (t.lock && now < t.lock && t.lock - now <= TSTAMP_LOCK_MS) return t.lock - now;
+    if (t.lock) { t.lock = 0; t.fails = 0; saveState(); }
+    return 0;
+  }
+  function tsLockText() {
+    const d = new Date(state.tstamp.lock), z = n => String(n).padStart(2, '0');
+    return `${d.getMonth() + 1}/${d.getDate()} ${z(d.getHours())}:${z(d.getMinutes())}`;
+  }
+  // 學生打 3 位數：看是 +1～+10 哪一組
   function tryTeacherStamp(input) {
     const t = state.tstamp, td = todayStr(), day = tsDay();
     if (!tsJoined()) return [false, '還沒有加入老師。'];
     if (t.stamps[td]) return [false, '今天老師已經蓋過章了，明天再來！'];
-    if ((t.tries[td] || 0) >= TSTAMP_TRIES) return [false, `今天已經試了 ${TSTAMP_TRIES} 次，明天再請老師蓋章。`];
+    if (tsLockLeft()) return [false, `🔒 打錯太多次，先鎖住了，${tsLockText()} 以後才能再請老師蓋章。`];
     const code = String(input || '').replace(/\D/g, '');
-    if (!t.pending || t.pending.day !== day || code.length !== 2) return [false, '請把老師手機唸的 2 個數字打進來。'];
+    if (!t.pending || t.pending.day !== day || code.length !== TSTAMP_LEN) return [false, `請把老師手機唸的 ${TSTAMP_LEN} 個數字打進來。`];
     const n = tsCodes(t.key, t.dev, day, t.pending.nonce).indexOf(code) + 1;
     if (!n) {
-      t.tries[td] = (t.tries[td] || 0) + 1;
-      Object.keys(t.tries).sort().slice(0, -7).forEach(k => { delete t.tries[k]; });
+      t.fails = (t.fails || 0) + 1;
+      if (t.fails >= TSTAMP_TRIES) t.lock = Date.now() + TSTAMP_LOCK_MS;
       saveState();
-      const left = TSTAMP_TRIES - t.tries[td];
-      return [false, left > 0 ? `數字不對喔，請再聽一次老師手機唸的數字，或看「${tsTag(t.pending.nonce)}」那一行。（今天還可以試 ${left} 次）` : `數字不對，今天已經試了 ${TSTAMP_TRIES} 次，明天再請老師蓋章。`];
+      const left = TSTAMP_TRIES - t.fails;
+      return [false, left > 0 ? `數字不對喔，請再聽一次老師手機唸的數字，或看「${tsTag(t.pending.nonce)}」那一行。（還可以試 ${left} 次，錯 ${TSTAMP_TRIES} 次會鎖 5 小時）` : `🔒 數字不對，已經錯 ${TSTAMP_TRIES} 次，鎖住 5 小時，${tsLockText()} 以後才能再請老師蓋章。`];
     }
+    t.fails = 0; t.lock = 0;
     t.stamps[td] = n;
     Object.keys(t.stamps).sort().slice(0, -60).forEach(k => { delete t.stamps[k]; });
     t.pending = null;
@@ -2032,6 +2048,8 @@
         </div>`;
     } else if (t.stamps[td]) {
       body = `<p class="stamp-status good">✅ 今天${tsEsc(t.name)}已經蓋章了！+${t.stamps[td]}⭐</p>`;
+    } else if (tsLockLeft()) {
+      body = `<p class="stamp-status" style="color:#c0392b;">🔒 數字打錯 ${TSTAMP_TRIES} 次，先鎖住了。${tsLockText()} 以後才能再請老師蓋章。</p>`;
     } else {
       body = `<p class="section-sub">已加入：<b>${tsEsc(t.name)}</b>。老師說可以的時候，按下面的按鈕。</p>
         <button class="btn btn-orange" id="btnTsAsk">👍 請老師蓋章</button>`;
@@ -2072,12 +2090,12 @@
       <div style="text-align:center;font-size:2rem;font-weight:900;margin:4px 0;">你的號碼牌：${tsEsc(req.tag)}</div>
       <ol class="stamp-steps">
         <li>請老師用手機掃這個 QR Code。</li>
-        <li>老師的手機會唸：「${tsEsc(req.tag.replace(/^\S+\s/, ''))}，請輸入 ○○」。</li>
-        <li>把那 2 個數字打在下面，打完就會自動送出。</li>
+        <li>老師的手機會唸：「${tsEsc(req.tag.replace(/^\S+\s/, ''))}，請輸入 ○○○」。</li>
+        <li>把那 3 個數字打在下面，打完就會自動送出。（錯 ${TSTAMP_TRIES} 次會鎖 5 小時）</li>
       </ol>
       <div class="stamp-qr">${svg || '<p>這台裝置畫不出 QR Code，請重新整理頁面再試一次。</p>'}</div>
-      <label class="stamp-label" for="stampCodeInput">老師手機唸的 2 個數字</label>
-      <input id="stampCodeInput" class="stamp-input" inputmode="numeric" autocomplete="off" maxlength="2" pattern="[0-9]*" style="max-width:150px;font-size:2.4rem;letter-spacing:.3em;text-align:center;">
+      <label class="stamp-label" for="stampCodeInput">老師手機唸的 3 個數字</label>
+      <input id="stampCodeInput" class="stamp-input" inputmode="numeric" autocomplete="off" maxlength="3" pattern="[0-9]*" style="max-width:190px;font-size:2.4rem;letter-spacing:.3em;text-align:center;">
       <div id="stampMsg" class="stamp-msg" role="alert"></div>
       <button class="btn btn-green" id="btnStampSubmit" style="width:100%;">送出</button>
     `);
@@ -2085,12 +2103,12 @@
     const submit = () => {
       const [ok, why] = tryTeacherStamp(input.value);
       if (ok) { closeModal(); petSay(why, 'happy'); renderCheckinTab(); }
-      else { document.getElementById('stampMsg').textContent = why; input.value = ''; }
+      else { document.getElementById('stampMsg').textContent = why; input.value = ''; if (tsLockLeft()) { input.disabled = true; document.getElementById('btnStampSubmit').disabled = true; } }
     };
     document.getElementById('btnCloseModal').addEventListener('click', () => { closeModal(); renderCheckinTab(); });
     document.getElementById('btnStampSubmit').addEventListener('click', submit);
     input.addEventListener('keydown', ev => { if (ev.key === 'Enter') submit(); });
-    input.addEventListener('input', () => { input.value = input.value.replace(/\D/g, '').slice(0, 2); if (input.value.length === 2) submit(); });   // 打滿 2 個數字就送出
+    input.addEventListener('input', () => { input.value = input.value.replace(/\D/g, '').slice(0, TSTAMP_LEN); if (input.value.length === TSTAMP_LEN) submit(); });   // 打滿 3 個數字就送出
     try { input.focus(); } catch (e) { /* 忽略 */ }
   }
 
@@ -3175,7 +3193,7 @@
       // v3.11.0 老師蓋章（固定數字和 teacher.html 的自動測試一樣）
       {
         const K = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
-        ok(tsFp(K) === '401874' && tsCodes(K, 'abcdef', '261124', '1a2b').join(',') === '41,91,78,85,71,72,21,33,59,80', '老師蓋章 2 位數算法和老師端相同（+1～+10 各一組不重複）');
+        ok(tsFp(K) === '401874' && tsCodes(K, 'abcdef', '261124', '1a2b').join(',') === '288,187,009,395,359,302,276,258,882,659', '老師蓋章 3 位數算法和老師端相同（+1～+10 各一組不重複）');
         const t = state.tstamp;
         ok(tryTeacherStamp('123456')[0] === false, '還沒加入老師：不能蓋章');
         adoptTeacher({ name: '林老師', tcode: 'ABCDEF', key: K });
@@ -3183,21 +3201,27 @@
         const hadTyping = !!state.typing; if (!hadTyping) state.typing = {};
         state.typing.who = { g: 4, c: 3, s: 12 };
         const rq = tsRequest();
-        ok(rq.text === ['PTS1', '401874', t.dev, tsDay(), t.pending.nonce, '4-3-12'].join('.') && /^🐶 [A-Z][1-9]$/.test(rq.tag), '請老師蓋章的 QR 內容正確（有座號、號碼牌）');
+        ok(rq.text === ['PTS2', '401874', t.dev, tsDay(), t.pending.nonce, '4-3-12'].join('.') && /^🐶 [A-Z][1-9]$/.test(rq.tag), '請老師蓋章的 QR 內容正確（有座號、號碼牌）');
         const s0 = state.stars;
         const good = tsCode(K, t.dev, tsDay(), t.pending.nonce, 7);
         const all10 = tsCodes(K, t.dev, tsDay(), t.pending.nonce);
-        const bad = ['00', '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11'].find(c => !all10.includes(c));
-        ok(new Set(all10).size === 10 && all10.every(c => /^\d\d$/.test(c)), '+1～+10 的 2 位數都不一樣');
-        ok(tryTeacherStamp(bad)[0] === false && t.tries[todayStr()] === 1, '2 位數打錯：不給，記一次');
-        ok(tryTeacherStamp(good)[0] === true && state.stars === s0 + 7 && t.stamps[todayStr()] === 7 && state.totals.teacher_stamps === 1, '老師給 +7：打對 2 位數就 +7⭐');
+        const pick = all => Array.from({ length: 20 }, (_, i) => String(i).padStart(3, '0')).find(c => !all.includes(c));
+        const bad = pick(all10);
+        ok(new Set(all10).size === 10 && all10.every(c => /^\d{3}$/.test(c)), '+1～+10 的 3 位數都不一樣');
+        ok(tryTeacherStamp(good.slice(0, 2))[0] === false && t.fails === 0, '只打 2 個數字：提醒要打 3 個，不算錯');
+        ok(tryTeacherStamp(bad)[0] === false && t.fails === 1, '3 位數打錯：不給，記一次');
+        ok(tryTeacherStamp(good)[0] === true && state.stars === s0 + 7 && t.stamps[todayStr()] === 7 && state.totals.teacher_stamps === 1 && t.fails === 0, '老師給 +7：打對 3 位數就 +7⭐（錯誤次數歸零）');
         ok(tryTeacherStamp(good)[0] === false, '老師蓋章一天一次');
-        t.stamps = {}; t.tries = {};
+        t.stamps = {}; t.tries = {}; t.fails = 0; t.lock = 0;
         tsRequest();
         const all2 = tsCodes(K, t.dev, tsDay(), t.pending.nonce);
-        const bad2 = ['00', '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11'].find(c => !all2.includes(c));   // 新的號碼要另外挑一個錯的
-        for (let i = 0; i < TSTAMP_TRIES; i++) tryTeacherStamp(bad2);
-        ok(/明天/.test(tryTeacherStamp(tsCode(K, t.dev, tsDay(), t.pending.nonce, 2))[1]), `一天最多試 ${TSTAMP_TRIES} 次（防亂猜）`);
+        const bad2 = pick(all2);   // 新的號碼要另外挑一個錯的
+        for (let i = 0; i < TSTAMP_TRIES - 1; i++) tryTeacherStamp(bad2);
+        ok(!t.lock && t.fails === TSTAMP_TRIES - 1, `錯 ${TSTAMP_TRIES - 1} 次還沒鎖`);
+        ok(/鎖住 5 小時/.test(tryTeacherStamp(bad2)[1]) && t.lock > Date.now() + TSTAMP_LOCK_MS - 60000, `錯 ${TSTAMP_TRIES} 次：鎖 5 小時`);
+        ok(/鎖住/.test(tryTeacherStamp(tsCode(K, t.dev, tsDay(), t.pending.nonce, 2))[1]) && !t.stamps[todayStr()], '鎖住時打對也不給');
+        t.lock = Date.now() - 1000;
+        ok(tryTeacherStamp(tsCode(K, t.dev, tsDay(), t.pending.nonce, 2))[0] === true && t.fails === 0 && t.lock === 0, '5 小時過了：自動解鎖，打對就給');
         t.invalid = true;
         ok(!tsJoined(), '老師換了代碼（雲端說無效）：要重新加入');
         state.tstamp = normalizeData(defaultData()).tstamp; state.totals.teacher_stamps = 0; if (hadTyping) state.typing.who = { g: 0, c: 0, s: 0 }; else delete state.typing;
