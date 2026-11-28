@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.27.0';
-  const APP_BUILD = '20261128-13';
+  const APP_VERSION = 'v3.27.1';
+  const APP_BUILD = '20261128-14';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
@@ -3102,7 +3102,9 @@
   updatePetSidebar();
   greetWithMemory();
   if (saveWarning) petSay(saveWarning, 'normal');
-  switchTab(location.hash === '#typing' || (window.PuppyTyping && window.PuppyTyping.isExam && window.PuppyTyping.isExam()) ? 'typing' : 'english');
+  // v3.27.1：老師決定一打開先停在「🌟 今天」（原本是英語闖關）
+  switchTab(location.hash === '#typing' || (window.PuppyTyping && window.PuppyTyping.isExam && window.PuppyTyping.isExam()) ? 'typing' : (window.PuppyToday ? 'today' : 'english'));
+  const START_TAB = activeTab;
   setInterval(() => { tickFullness(); updatePetSidebar(); }, 60000);
   // v3.3.2：離開頁面時把今天的自動備份更新成最新；並請瀏覽器不要自動清掉這個網站的資料
   document.addEventListener('visibilitychange', () => {
@@ -3773,6 +3775,8 @@
       ok(window.PuppyApp.adoptCloud(cc) === false && state.stars === 3, '雲端那一份被改過（簽章不對）就不換');
       try { localStorage.removeItem(STORAGE_KEY + '.before_cloud'); } catch (e) { /* 忽略 */ }
       dailyKeys().forEach(k => localStorage.removeItem(k));
+      // v3.27.1：一打開先停在「🌟 今天」
+      if (window.PuppyToday && location.hash !== '#typing') ok(START_TAB === 'today', '一打開網頁先停在「🌟 今天」分頁');
       // v3.24.0：20 天成長地圖
       if (window.PuppyToday && window.PuppyWear) {
         state = loadState();

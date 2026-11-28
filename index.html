@@ -7,9 +7,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="學習小伙伴">
   <meta name="theme-color" content="#2fa86b">
-  <title>汪汪小精靈 學習小伙伴（平板／網頁版 v3.27.0）</title>
+  <title>汪汪小精靈 學習小伙伴（平板／網頁版 v3.27.1）</title>
   <link rel="manifest" href="./manifest.json">
-  <link rel="stylesheet" href="./style.css?v=20261128-13">
+  <link rel="stylesheet" href="./style.css?v=20261128-14">
 </head>
 <body>
   <!-- 頂部狀態列 -->
@@ -86,9 +86,9 @@
     <!-- 右側／下方：四大核心功能分頁 -->
     <section id="mainContent">
       <!-- v3.23.0：🌟 今天（錯題複習本等，內容由 today.js 產生） -->
-      <div id="tab-today" class="tab-pane" style="display:none;"></div>
+      <div id="tab-today" class="tab-pane"></div>
       <!-- 分頁 1：英語單字闖關 -->
-      <div id="tab-english" class="tab-pane"></div>
+      <div id="tab-english" class="tab-pane" style="display:none;"></div>
 
       <!-- 分頁 2：自我打卡（好習慣與功課） -->
       <div id="tab-checkin" class="tab-pane" style="display:none;"></div>
@@ -112,10 +112,10 @@
 
   <!-- 底部導覽列 -->
   <nav class="bottom-nav" aria-label="主要功能">
-    <button class="nav-tab" data-tab="today">
+    <button class="nav-tab active" data-tab="today">
       <span class="nav-ico" aria-hidden="true">🌟</span><span class="nav-lbl">今天</span><span class="nav-badge" id="todayBadge" hidden>0</span>
     </button>
-    <button class="nav-tab active" data-tab="english">
+    <button class="nav-tab" data-tab="english">
       <span class="nav-ico" aria-hidden="true">🦉</span><span class="nav-lbl">英語闖關</span>
     </button>
     <button class="nav-tab" data-tab="checkin">
@@ -146,31 +146,31 @@
     <div id="modalCard" class="modal-card"></div>
   </div>
 
-  <script src="./vocab_data.js?v=20261128-13"></script>
-  <script src="./vocab_filter.js?v=20261128-13"></script>
-  <script src="./qrcode.js?v=20261128-13"></script>
-  <script src="./stamp.js?v=20261128-13"></script>
-  <script src="./zh_texts.js?v=20261128-13"></script>
-  <script src="./typing.js?v=20261128-13"></script>
-  <script src="./math.js?v=20261128-13"></script>
-  <script src="./puzzle.js?v=20261128-13"></script>
-  <script src="./today.js?v=20261128-13"></script>
-  <script src="./duel.js?v=20261128-13"></script>
-  <script src="./tangram.js?v=20261128-13"></script>
-  <script src="./gomoku.js?v=20261128-13"></script>
-  <script src="./sudoku.js?v=20261128-13"></script>
-  <script src="./slide.js?v=20261128-13"></script>
-  <script src="./lever.js?v=20261128-13"></script>
-  <script src="./sel.js?v=20261128-13"></script>
-  <script src="./wheel.js?v=20261128-13"></script>
-  <script src="./pet_wear.js?v=20261128-13"></script>
-  <script src="./pet_engine.js?v=20261128-13"></script>
-  <script src="./petplay.js?v=20261128-13"></script>
-  <script src="./vip.js?v=20261128-13"></script>
-  <script src="./counter.js?v=20261128-13"></script>
-  <script src="./cloud_config.js?v=20261128-13"></script>
-  <script src="./cloud_merge.js?v=20261128-13"></script>
-  <script src="./cloud.js?v=20261128-13"></script>
-  <script src="./app.js?v=20261128-13"></script>
+  <script src="./vocab_data.js?v=20261128-14"></script>
+  <script src="./vocab_filter.js?v=20261128-14"></script>
+  <script src="./qrcode.js?v=20261128-14"></script>
+  <script src="./stamp.js?v=20261128-14"></script>
+  <script src="./zh_texts.js?v=20261128-14"></script>
+  <script src="./typing.js?v=20261128-14"></script>
+  <script src="./math.js?v=20261128-14"></script>
+  <script src="./puzzle.js?v=20261128-14"></script>
+  <script src="./today.js?v=20261128-14"></script>
+  <script src="./duel.js?v=20261128-14"></script>
+  <script src="./tangram.js?v=20261128-14"></script>
+  <script src="./gomoku.js?v=20261128-14"></script>
+  <script src="./sudoku.js?v=20261128-14"></script>
+  <script src="./slide.js?v=20261128-14"></script>
+  <script src="./lever.js?v=20261128-14"></script>
+  <script src="./sel.js?v=20261128-14"></script>
+  <script src="./wheel.js?v=20261128-14"></script>
+  <script src="./pet_wear.js?v=20261128-14"></script>
+  <script src="./pet_engine.js?v=20261128-14"></script>
+  <script src="./petplay.js?v=20261128-14"></script>
+  <script src="./vip.js?v=20261128-14"></script>
+  <script src="./counter.js?v=20261128-14"></script>
+  <script src="./cloud_config.js?v=20261128-14"></script>
+  <script src="./cloud_merge.js?v=20261128-14"></script>
+  <script src="./cloud.js?v=20261128-14"></script>
+  <script src="./app.js?v=20261128-14"></script>
 </body>
 </html>
