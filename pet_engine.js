@@ -1671,6 +1671,15 @@
     let lastPt = { x: 0, y: 0 };
     let vxTrack = 0, vyTrack = 0;
 
+    // v3.20.1：v3.19.2 起改由 body 捲動，iPad Safari 手指按在狗狗身上時，捲動可能把觸控搶走。
+    // 按到狗狗或玩具時先鎖住捲動，放開（或觸控被取消）再解開。
+    function lockScroll(ev) {
+      if (ev && ev.type && ev.type.indexOf('touch') === 0) document.documentElement.classList.add('pet-drag-lock');
+    }
+    function unlockScroll() {
+      document.documentElement.classList.remove('pet-drag-lock');
+    }
+
     function getPt(ev) {
       if (ev.changedTouches && ev.changedTouches.length) {
         return { x: ev.changedTouches[0].clientX, y: ev.changedTouches[0].clientY };
@@ -1679,6 +1688,7 @@
     }
 
     function onDown(ev) {
+      if (document.body.classList.contains('pet-hidden')) return;   // v3.21.0：學習分頁時狗狗收起來
       const tg = ev.target;
       if (tg && tg.closest && tg.closest('button, a, input, select, textarea, label, .checkin-item, .modal-backdrop.open')) return;
       const pt = getPt(ev);
@@ -1695,6 +1705,7 @@
           t.carried = false;
           if (world.dog.carry === t) world.dog.carry = null;
           lastPt = pt;
+          lockScroll(ev);
           ev.preventDefault();
           return;
         }
@@ -1707,6 +1718,7 @@
         vxTrack = 0;
         vyTrack = 0;
         dragMode = world.dog.hitHead(pt.x, pt.y) ? 'rub_or_drag' : 'drag_wait';
+        lockScroll(ev);
         ev.preventDefault();
       }
     }
@@ -1722,6 +1734,7 @@
       world.mouse.y = pt.y;
 
       if (!dragMode) {
+        if (document.body.classList.contains('pet-hidden')) return;
         // 滑鼠經過狗頭輕輕摸摸
         if (world.dog && world.dog.hitHead(pt.x, pt.y) && Math.hypot(dx, dy) > 3) {
           world.dog.head_pet_time += 0.04;
@@ -1768,6 +1781,7 @@
 
     function onUp(ev) {
       world.mouse.down = false;
+      unlockScroll();
       if (!dragMode) return;
       const pt = getPt(ev);
       const dist = Math.hypot(pt.x - downPt.x, pt.y - downPt.y);
@@ -1828,6 +1842,22 @@
     window.addEventListener('touchstart', onDown, { passive: false });
     window.addEventListener('touchmove', onMove, { passive: false });
     window.addEventListener('touchend', onUp, { passive: false });
+    // v3.20.1：觸控被系統取消（例如被捲動搶走）時，不要讓狗狗卡在「拎著」或「等拖曳」的狀態
+    window.addEventListener('touchcancel', () => {
+      world.mouse.down = false;
+      unlockScroll();
+      if (dragMode === 'toy' && draggedToy) {
+        draggedToy.held = false;
+        draggedToy = null;
+      } else if (dragMode === 'dog') {
+        world.dog.fx = world.dog.hx;
+        world.dog.fy = world.dog.hy;
+        world.dog.fvx = 0;
+        world.dog.fvy = 2.5;
+        world.dog.setState('fall', 15);
+      }
+      dragMode = null;
+    }, { passive: true });
 
     // 主迴圈 (60 FPS)
     let lastTs = performance.now();

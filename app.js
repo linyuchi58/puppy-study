@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.20.0';
-  const APP_BUILD = '20261128-4';
+  const APP_VERSION = 'v3.21.0';
+  const APP_BUILD = '20261128-5';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
@@ -2612,6 +2612,7 @@
   }
 
   // ── 切換分頁與事件綁定 ──
+  const PET_TABS = ['checkin', 'dex', 'transfer'];
   function switchTab(tab) {
     // v3.7.6：打字測驗模式中（含測驗結束等老師解除），不能切到別的分頁
     if (tab !== 'typing' && window.PuppyTyping && window.PuppyTyping.isExam && window.PuppyTyping.isExam()) tab = 'typing';
@@ -2626,6 +2627,8 @@
     document.querySelectorAll('.nav-tab').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.tab === tab);
     });
+    // v3.21.0：學習活動時（英語、打字、心算、益智）收起左邊狗狗區和走動的狗狗，只在打卡、圖鑑、搬家碼顯示
+    document.body.classList.toggle('pet-hidden', PET_TABS.indexOf(tab) < 0);
     if (tab === 'english') renderEnglishTab();
     if (tab === 'checkin') renderCheckinTab();
     if (tab === 'dex') renderDexTab();
@@ -2933,6 +2936,13 @@
         }
       };
       ok(state.stars === 0 && maxBondLevel() === 1, '新存檔應該是 0 星、Lv1');
+      {
+        const was = activeTab;
+        switchTab('math'); const hidM = document.body.classList.contains('pet-hidden');
+        switchTab('dex'); const hidD = document.body.classList.contains('pet-hidden');
+        switchTab(was);
+        ok(hidM && !hidD, '學習分頁要收起狗狗區、圖鑑分頁要顯示（v3.21.0）');
+      }
       ok(useItem('bowl') === false && state.stars === 0, '0 星不能買飼料');
       ok(!trickOk('copter') && !trickOk('roll') && trickOk('paw'), 'Lv1：螺旋槳、翻滾上鎖，握手可以');
       ok(doTrick('copter') === false, 'Lv1 不能表演螺旋槳');

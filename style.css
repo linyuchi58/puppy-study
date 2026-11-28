@@ -1314,7 +1314,13 @@ html { height: 100%; overflow: hidden; }
 body {
   height: 100%;
   overflow-x: hidden; overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
   overscroll-behavior: none;
 }
 @supports (height: 100dvh) { body { height: 100dvh; } }
+
+/* v3.20.1：手指按住走動的狗狗或玩具時，暫停捲動，免得 iPad 把拖曳當成捲動 */
+html.pet-drag-lock body { overflow: hidden; touch-action: none; }
+
+/* v3.21.0：學習活動分頁（英語、打字、心算、益智）收起狗狗區與走動的狗狗，題目區用滿整個寬度 */
+body.pet-hidden .pet-stage, body.pet-hidden #worldCanvas { display: none !important; }
+body.pet-hidden .layout { grid-template-columns: minmax(0, 1fr); }
