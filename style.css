@@ -1420,3 +1420,41 @@ body.pet-hidden .layout { grid-template-columns: minmax(0, 1fr); }
   #tdPrintBox * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 #tdPrintBox { display: none; }
+/* ── v3.26.0 ⚔️ 雙人同機對戰（全畫面，上半部倒過來） ── */
+.du-box { position: fixed; inset: 0; z-index: 9000; display: flex; flex-direction: column; background: #fffaf2; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.du-box[hidden] { display: none; }
+body.du-on { overflow: hidden; }
+body.du-on #worldCanvas { display: none; }
+.du-half { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 1.2vh; padding: 1.5vh 4vw; }
+.du-half.p0 { background: #eaf3fd; }
+.du-half.p1 { background: #fff0e2; transform: rotate(180deg); }
+.du-half.locked .du-ch { opacity: .45; }
+.du-score { display: flex; align-items: center; gap: 12px; font-weight: 900; font-size: 1.1rem; }
+.du-score b { font-size: 2rem; min-width: 1.5em; text-align: center; }
+.du-qn { margin-left: auto; font-size: 0.9rem; color: var(--muted); font-weight: 700; }
+.du-q { text-align: center; font-size: clamp(1.8rem, 6vh, 3.2rem); font-weight: 900; letter-spacing: 1px; }
+.du-q.en { font-family: "Segoe UI", Arial, sans-serif; }
+.du-chs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.2vh 2vw; }
+.du-ch { min-height: clamp(48px, 8vh, 90px); border-radius: 18px; border: 3px solid #d8cabb; background: #fff; font-size: clamp(1.1rem, 3.4vh, 1.9rem); font-weight: 800; color: var(--text); padding: 4px 8px; cursor: pointer; }
+.p0 .du-ch { border-color: #9cc4ee; }
+.p1 .du-ch { border-color: #ffc98a; }
+.du-ch:active { transform: scale(.97); }
+.du-ch.right { background: #2fa86b; border-color: #2fa86b; color: #fff; }
+.du-ch.bad { background: #ffd9d4; border-color: #e53935; }
+.du-msg { min-height: 1.4em; text-align: center; font-weight: 800; font-size: 1.05rem; }
+.du-mid { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 4px 10px; background: #4a3b32; }
+.du-lane { flex: 1; position: relative; height: 34px; border-radius: 17px; background: rgba(255,255,255,.15); }
+.du-lane:first-child { transform: rotate(180deg); }
+.du-dog { position: absolute; top: 2px; font-size: 1.6rem; line-height: 1; transition: left .4s; transform: scaleX(-1); }
+.du-quit { flex: 0 0 auto; border: none; border-radius: 12px; padding: 6px 12px; font-weight: 800; background: #fff; color: #4a3b32; cursor: pointer; }
+.du-res { margin: auto; text-align: center; max-width: 560px; }
+.du-res-big { font-size: clamp(1.6rem, 5vh, 2.6rem); font-weight: 900; }
+.du-res-score { display: flex; justify-content: center; gap: 12px; font-size: clamp(1.8rem, 6vh, 3rem); font-weight: 900; margin: 1vh 0; }
+.du-res p { font-weight: 700; }
+.du-res-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.du-mid.res { min-height: 6px; padding: 0; }
+.du-opts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 6px 0; }
+.du-opt-l { font-weight: 800; min-width: 3em; }
+.du-opts .chip-btn small { display: block; font-size: 0.72rem; color: var(--muted); }
+.du-go { margin-top: 8px; min-width: 200px; font-size: 1.1rem; }
+@media (orientation: landscape) and (max-height: 600px) { .du-chs { grid-template-columns: repeat(4, 1fr); } .du-q { font-size: 1.6rem; } .du-score b { font-size: 1.4rem; } }

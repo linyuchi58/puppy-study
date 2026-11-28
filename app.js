@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.25.0';
-  const APP_BUILD = '20261128-11';
+  const APP_VERSION = 'v3.26.0';
+  const APP_BUILD = '20261128-12';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
@@ -760,6 +760,7 @@
     if (window.PuppyPuzzle && window.PuppyPuzzle.isPlaying && window.PuppyPuzzle.isPlaying()) return true;
     if (currentQuiz && activeTab === 'english') return true;
     if (window.PuppySEL && window.PuppySEL.isOpen && window.PuppySEL.isOpen()) return true;
+    if (window.PuppyDuel && window.PuppyDuel.isOpen()) return true;
     const bd = document.getElementById('modalBackdrop');
     if (bd && bd.classList.contains('open')) return true;
     return false;
@@ -3062,6 +3063,31 @@
       switchTab: t => switchTab(t)
     });
   }
+  // v3.26.0：⚔️ 雙人同機對戰（從「今天」分頁開始）
+  if (window.PuppyDuel) {
+    window.PuppyDuel.mount({
+      getState: () => state,
+      save: () => saveState(),
+      award: (xp, stars, subj, text) => award(xp, stars, subj, text),
+      petSay: (msg, mood) => petSay(msg, mood || 'normal'),
+      refresh: () => { if (activeTab === 'today') switchTab('today'); },
+      // 英語對戰用的字：先用學過的字，不夠再補目前路線前面的字
+      vocabPool: () => {
+        if (!vocabDB) return [];
+        const seen = new Set(), out = [];
+        const add = id => {
+          const w = vocabDB.byid[id];
+          if (!w || seen.has(w.id)) return;
+          const en = String(w.w || '').split('/')[0].trim(), zh = shortGloss(w);
+          if (!en || !zh) return;
+          seen.add(w.id); out.push({ w: en, z: zh });
+        };
+        Object.keys(state.eng.words || {}).forEach(k => add(parseInt(k, 10)));
+        if (out.length < 30) ((vocabDB.tracks[state.eng.track || 'kid'] || []).slice(0, 60)).forEach(add);
+        return out;
+      }
+    });
+  }
   // v3.14.0：🧩 益智挑戰（魔術方塊）
   if (window.PuppyPuzzle) {
     window.PuppyPuzzle.mount(document.getElementById('tab-puzzle'), {
@@ -3778,6 +3804,33 @@
         const W = TT.weekStats(0), P = TT.weekStats(-1);
         ok(W.learned === 2 && W.xpSum === 35 && P.learned === 1 && P.xpSum === 10, '報告：這週學習 2 天、35 經驗值；上週 1 天、10 經驗值');
         ok(W.eng === 2 && W.math === 3 && W.mathOk === 25 && W.rv === 1 && W.ty === 3 && W.tyMin === 10 && W.tyOk === 90 && W.puzzle === 1 && W.checks === 2 && W.tstamp === 1, '報告：英語 2 關、心算 3 回 25 題、複習 1 次、打字 3 回 10 分鐘、益智 1、打卡 2 項、老師蓋章 1 天');
+        state = loadState();
+      }
+      // v3.26.0：雙人同機對戰
+      if (window.PuppyDuel) {
+        state = loadState();
+        const DT = window.PuppyDuel._t;
+        let mbad = '';
+        ['low', 'mid', 'high'].forEach(lv => { for (let i = 0; i < 300 && !mbad; i++) { const q = DT.mathQ(lv); const a = Function('return ' + q.q.replace(' ＝ ？', '').replace(/＋/g, '+').replace(/－/g, '-').replace(/×/g, '*').replace(/÷/g, '/'))(); if (q.choices.length !== 4 || new Set(q.choices).size !== 4 || q.choices[q.ans] !== String(a) || q.choices.some(c => +c < 0) || a !== Math.floor(a)) mbad = lv + '：' + q.q + ' ' + q.choices.join(','); } });
+        ok(!mbad, '對戰心算題：三種難度答案都對、4 個選項不重複、沒有負數和小數' + (mbad ? '：' + mbad : ''));
+        const eq = DT.engQs(10);
+        ok(eq && eq.length === 10 && eq.every(q => q.choices.length === 4 && new Set(q.choices).size === 4 && q.ans >= 0), '對戰英語題：10 題、4 個不重複的中文意思');
+        window.PuppyDuel.start('math', 'low');
+        let g = DT.game(), q = g.qs[0];
+        ok(DT.answer(0, (q.ans + 1) % 4) === 'wrong' && DT.answer(0, q.ans) === 'locked', '答錯要停一下，不能馬上再按');
+        ok(DT.answer(1, q.ans) === 'ok' && g.score[1] === 1 && DT.answer(0, q.ans) === 'ignored', '對方先答對得 1 分，這一題就結束');
+        const s0 = state.stars;
+        for (let i = 1; i <= 10; i++) { DT.next(); g = DT.game(); if (g.done) break; if (i < 6) DT.answer(i % 2, g.qs[g.i].ans); }
+        ok(g.done && state.stars === s0 + 1 && DT.data().days[todayStr()].r === 1, '一場打完（答對 6 題）：參加獎 +1⭐');
+        window.PuppyDuel.start('math', 'low'); g = DT.game();
+        for (let i = 0; i < 10; i++) DT.next();
+        ok(DT.game().done && state.stars === s0 + 1, '亂按、答對太少（少於 5 題）沒有參加獎');
+        DT.data().days[todayStr()].r = 3;
+        window.PuppyDuel.start('math', 'low'); g = DT.game();
+        for (let i = 0; i < 10; i++) { DT.answer(0, g.qs[g.i].ans); DT.next(); }
+        ok(DT.game().done && state.stars === s0 + 1, '一天最多 3 場參加獎');
+        window.PuppyDuel.close();
+        ok(!window.PuppyDuel.isOpen() && !document.body.classList.contains('du-on'), '結束對戰回到原本畫面');
         state = loadState();
       }
       ok(/^v\d+\.\d+\.\d+$/.test(APP_VERSION) && /^\d{8}-\d+$/.test(APP_BUILD), '版本與建置編號格式正確：' + APP_VERSION + ' ' + APP_BUILD);

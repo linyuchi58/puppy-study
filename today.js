@@ -1,6 +1,6 @@
 // -*- coding: utf-8 -*-
 // 《汪汪小精靈 學習小伙伴》網頁版 —— 🌟「今天」分頁（v3.23.0 起）
-// 把「每天回來要做的事」放在同一頁：錯題複習本（v3.23.0）、20 天成長地圖（v3.24.0）、每週學習小報告（v3.25.0）……之後的版本會再加成長地圖、每週報告、雙人對戰、每日任務。
+// 把「每天回來要做的事」放在同一頁：錯題複習本（v3.23.0）、20 天成長地圖（v3.24.0）、每週學習小報告（v3.25.0）、雙人對戰入口（v3.26.0，duel.js）……之後的版本會再加成長地圖、每週報告、雙人對戰、每日任務。
 // 這個檔案只負責畫面；存檔、獎勵都透過 app.js 給的 hooks（getState、save、award…），規則和其他分頁一樣。
 (function () {
   'use strict';
@@ -213,10 +213,12 @@
       </div>
       ${reviewHtml()}
       ${mapHtml()}
+      ${window.PuppyDuel ? window.PuppyDuel.cardHtml() : ''}
       ${reportHtml()}`;
     const on = (sel, fn) => { const el = pane.querySelector(sel); if (el) el.addEventListener('click', fn); };
     on('#tdRvMath', () => H.goMathReview());
     on('#tdRvEng', () => H.goEnglishReview());
+    if (window.PuppyDuel) window.PuppyDuel.bindCard(pane, render);
     on('#tdWkPrev', () => { weekOff -= 1; render(); });
     on('#tdWkNext', () => { if (weekOff < 0) { weekOff += 1; render(); } });
     on('#tdPrint', () => {
