@@ -1328,3 +1328,17 @@ body.pet-hidden .layout { grid-template-columns: minmax(0, 1fr); }
 /* v3.21.1 數獨：每一列也要一樣高（整列空白時不會被壓扁） */
 .sd-grid { grid-template-columns: repeat(var(--n), minmax(0, 1fr)); grid-template-rows: repeat(var(--n), minmax(0, 1fr)); }
 .sd-cell { min-height: 0; min-width: 0; line-height: 1; }
+
+/* v3.22.0：🎀 狗狗衣櫃（圖鑑分頁） */
+.wr-wrap { display: flex; gap: 14px; align-items: flex-start; margin-top: 8px; }
+.wr-pic { flex: 0 0 auto; width: 200px; height: 190px; border-radius: 18px; background: #fffaf3; border: 2px solid var(--line); }
+.wr-slots { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.wr-slot-name { font-weight: 800; color: var(--muted); font-size: 0.9rem; margin-bottom: 4px; }
+.wr-items { display: flex; flex-wrap: wrap; gap: 8px; }
+.wr-btn { min-width: 92px; }
+.chip-btn.wr-locked { background: #f7f3ee; border-style: dashed; }
+.wr-season { margin: 8px 0; padding: 8px 12px; border-radius: 14px; background: #fff1f1; border: 2px solid #ffc9c9; font-size: 0.92rem; }
+@media (max-width: 640px) {
+  .wr-wrap { flex-direction: column; align-items: center; }
+  .wr-slots { width: 100%; }
+}

@@ -1300,6 +1300,21 @@
     }
   }
 
+  // v3.22.0：把衣櫃裝飾畫在走動的狗狗身上（只畫在 canvas，不影響拖曳判定）
+  function drawWear(ctx, dog, wear, hx, hy, u, d, eyePt, neckPt) {
+    const W = window.PuppyWear;
+    if (!W || !wear || typeof wear !== 'object') return;
+    const R = dog.rendered || {};
+    const eye = eyePt || R.eye_n || [hx, hy];
+    const neck = neckPt || R.neck || [hx, hy + u];
+    const S = world.S;
+    W.draw(ctx, wear, {
+      hx: hx + d * 3 * S, top: hy - u * 0.88, u: u * 0.95, hu: u * 1.3,
+      ex: eye[0], ey: eye[1], gap: d ? 0 : u * 0.7,
+      nx: neck[0], ny: neck[1], dir: d
+    });
+  }
+
   function drawDogFull(ctx, dog, pid, acc) {
     const S = world.S;
     const d = dog.dir;
@@ -1333,6 +1348,7 @@
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(isDragon ? '🐲' : pid === 'standee' ? '🖼️' : '🧸', hx, hy - 2 * S);
+      drawWear(ctx, dog, acc, hx, hy, 20 * S, 0, [hx, hy - 2 * S], [cx, cy - 14 * S]);   // v3.22.0
       return;
     }
 
@@ -1491,24 +1507,8 @@
     ctx.fill();
     }
 
-    // 4. 變裝配件（博士帽、墨鏡、紅領巾、小皇冠）
-    if (acc && acc !== 'none') {
-      ctx.save();
-      ctx.font = `${Math.round(24 * S)}px "Segoe UI Emoji", "Apple Color Emoji", sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      if (acc === 'grad_cap') ctx.fillText('🎓', hx, hy - 26 * S);
-      if (acc === 'crown') ctx.fillText('👑', hx, hy - 26 * S);
-      if (acc === 'sunglasses') {
-        const [ex, ey] = dog.rendered.eye_n;
-        ctx.fillText('🕶️', ex + d * 4 * S, ey + 1 * S);
-      }
-      if (acc === 'scarf') {
-        const [nx, ny] = dog.rendered.neck;
-        ctx.fillText('🧣', nx + d * 4 * S, ny + 8 * S);
-      }
-      ctx.restore();
-    }
+    // 4. 裝飾（v3.22.0：pet_wear.js，頭上／臉上／脖子；和圖鑑、左邊狗狗區同一份）
+    drawWear(ctx, dog, acc, hx, hy, 17.5 * S, d);
   }
 
   function renderWorld(ctx) {
@@ -1551,7 +1551,8 @@
     // 3. 繪製狗狗與雨傘
     const appState = window.PUPPY_GET_STATE ? window.PUPPY_GET_STATE() : null;
     const pid = (appState && appState.pets && appState.pets.current) || 'dog:威爾斯柯基';
-    const acc = (appState && appState.pets && appState.pets.acc) || 'none';
+    const W = window.PuppyWear;
+    const acc = appState && appState.pets && W ? W.worn(appState.pets) : null;   // v3.22.0：衣櫃 { head, face, neck }
     drawDogFull(ctx, world.dog, pid, acc);
     if (world.dog.state === 'fall' && pid.startsWith('dog:')) {
       drawUmbrella(ctx, world.dog);

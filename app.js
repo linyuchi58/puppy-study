@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.21.1';
-  const APP_BUILD = '20261128-6';
+  const APP_VERSION = 'v3.22.0';
+  const APP_BUILD = '20261128-7';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
@@ -190,6 +190,8 @@
       pets: {
         current: 'dog:威爾斯柯基',
         acc: 'none',
+        wear: { head: 'none', face: 'none', neck: 'none' },
+        closet: {},
         fullness: 85,
         full_ts: 0,
         unlocked: { 'dog:威爾斯柯基': todayStr() },
@@ -276,6 +278,7 @@
     if (!base.pets || typeof base.pets !== 'object') base.pets = defaultData().pets;
     if (!base.pets.current) base.pets.current = 'dog:威爾斯柯基';
     if (!base.pets.acc) base.pets.acc = 'none';
+    if (window.PuppyWear) window.PuppyWear.normalize(base.pets);   // v3.22.0：衣櫃（頭上／臉上／脖子）
     if (typeof base.pets.fullness !== 'number' || !isFinite(base.pets.fullness)) base.pets.fullness = 85;
     if (!base.pets.unlocked || typeof base.pets.unlocked !== 'object') base.pets.unlocked = {};
     if (!base.pets.unlocked['dog:威爾斯柯基']) base.pets.unlocked['dog:威爾斯柯基'] = todayStr();
@@ -1126,13 +1129,10 @@
         ctx.fill();
       });
 
-      // 配件繪製
-      ctx.font = `${Math.round(r * 0.52)}px "Segoe UI Emoji", "Apple Color Emoji", sans-serif`;
-      ctx.textAlign = 'center';
-      if (acc === 'grad_cap') ctx.fillText('🎓', cx, cy - r * 0.62);
-      if (acc === 'crown') ctx.fillText('👑', cx, cy - r * 0.64);
-      if (acc === 'sunglasses') ctx.fillText('🕶️', cx, cy + r * 0.06);
-      if (acc === 'scarf') ctx.fillText('🧣', cx, cy + r * 0.78);
+      // v3.22.0：裝飾（pet_wear.js，頭上／臉上／脖子）
+      if (window.PuppyWear) {
+        window.PuppyWear.draw(ctx, wearOf(acc), { hx: cx, top: cy - r * 0.6, u: r * 0.62, ex: cx, ey: cy - r * 0.04, gap: r * 0.6, nx: cx, ny: cy + r * 0.74, dir: 0 });
+      }
     } else {
       const petRow = PETS.find(p => p[0] === pid) || PETS[0];
       ctx.beginPath();
@@ -1146,7 +1146,22 @@
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(petRow[1], cx, cy + 4);
+      if (window.PuppyWear) {   // v3.22.0：小熊、小藍龍、立牌也能戴
+        window.PuppyWear.draw(ctx, wearOf(acc), { hx: cx, top: cy - r * 0.62, u: r * 0.6, ex: cx, ey: cy - r * 0.08, gap: r * 0.5, nx: cx, ny: cy + r * 0.72, dir: 0 });
+      }
     }
+  }
+
+  // v3.22.0：drawDogOnCanvas 的 acc 可以是舊的一個代號，或衣櫃 { head, face, neck }
+  function wearOf(acc) {
+    if (acc && typeof acc === 'object') return acc;
+    const r = window.PuppyWear && window.PuppyWear.BY_ID[acc];
+    const w = { head: 'none', face: 'none', neck: 'none' };
+    if (r) w[r[3]] = r[0];
+    return w;
+  }
+  function curWear() {
+    return window.PuppyWear ? window.PuppyWear.worn(state.pets) : wearOf(state.pets.acc);
   }
 
   function drawPetStage() {
@@ -1162,8 +1177,7 @@
     ctx.fill();
 
     const pid = state.pets.current || 'dog:威爾斯柯基';
-    const acc = state.pets.acc || 'none';
-    drawDogOnCanvas(ctx, 110, 108, 60, pid, acc, petAnim.mood, petAnim.bounce);
+    drawDogOnCanvas(ctx, 110, 108, 60, pid, curWear(), petAnim.mood, petAnim.bounce);
 
     // 飄動愛心
     petAnim.hearts.forEach(h => {
@@ -2180,13 +2194,181 @@
   }
 
   // ════════════════════════════════════════════════════════════════════
+  //  v3.22.0：🎀 狗狗衣櫃（裝飾）—— 清單與畫法在 pet_wear.js
+  //   原本 4 樣看親密度；新的用星星買一次永久擁有；聖誕、新年裝飾節日期間當天有學習就免費領
+  // ════════════════════════════════════════════════════════════════════
+  function wearInfo() {
+    const td = todayStr();
+    return {
+      lv: maxDogLevel(),
+      vip: !!(state.vip && state.vip.on),
+      closet: state.pets.closet || {},
+      today: td,
+      learnedToday: ((state.history[td] || {}).xp || 0) > 0
+    };
+  }
+
+  // 按一下某個裝飾（或 'none:head' 拿掉那個位置）。回傳 true＝有改變
+  function wearAction(id) {
+    const W = window.PuppyWear;
+    if (!W || !id) return false;
+    const w = W.worn(state.pets);
+    if (id.startsWith('none:')) {
+      const slot = id.slice(5);
+      if (!(slot in w) || w[slot] === 'none') return false;
+      w[slot] = 'none';
+      W.syncAcc(state.pets);
+      saveState();
+      petSay('✨ 拿下來了，清爽一下！', 'normal');
+      return true;
+    }
+    const r = W.BY_ID[id];
+    if (!r) return false;
+    const [, icon, name, slot, , val] = r;
+    const st = W.status(id, wearInfo());
+    const sea = W.SEASONS[st[1]] || {};
+    if (st[0] === 'lv') {
+      petSay(`🔒 「${name}」要狗狗親密度 Lv${val} 才能戴（現在 Lv${maxDogLevel()}）。一起學習就會解鎖！`, 'normal');
+      return false;
+    }
+    if (st[0] === 'season') {
+      petSay(`${sea.icon} 「${name}」是${sea.name}限定禮物，${sea.when}學習就能免費領喔！`, 'normal');
+      return false;
+    }
+    if (st[0] === 'claim_wait') {
+      petSay(`${sea.icon} ${sea.name}禮物「${name}」！今天先完成一項學習（英語、打字、心算、益智或打卡都可以），就能免費領取～`, 'normal');
+      return false;
+    }
+    if (st[0] === 'star') {
+      if ((state.stars || 0) < val) {
+        petSay(`⭐ 「${name}」要 ${val} 顆星星，你現在有 ${state.stars || 0} 顆。繼續學習就能賺到喔！`, 'normal');
+        return false;
+      }
+      if (!confirm(`要用 ⭐ ${val} 顆星星買「${icon} ${name}」嗎？\n\n買了就永遠是你的，換夥伴也能戴。`)) return false;
+      state.stars -= val;
+      state.pets.closet[id] = todayStr();
+      state.shop_log = (state.shop_log || []).slice(-40).concat([[todayStr(), 'wear:' + id]]);
+      w[slot] = id;
+      W.syncAcc(state.pets);
+      saveState();
+      petSay(`🎉 買到「${name}」了！${icon} 謝謝你用努力換來的禮物！`, 'happy');
+      if (window.PuppyInteractive && window.PuppyInteractive.react) window.PuppyInteractive.react('pat');
+      return true;
+    }
+    if (st[0] === 'claim') {
+      state.pets.closet[id] = todayStr();
+      w[slot] = id;
+      W.syncAcc(state.pets);
+      saveState();
+      petSay(`🎁 ${sea.name}快樂！領到「${name}」${icon}，這個永遠是你的喔！`, 'happy');
+      if (window.PuppyInteractive && window.PuppyInteractive.react) window.PuppyInteractive.react('pat');
+      return true;
+    }
+    if (st[0] !== 'ok') return false;
+    if (w[slot] === id) {
+      w[slot] = 'none';
+      petSay(`✨ 把「${name}」拿下來了。`, 'normal');
+    } else {
+      w[slot] = id;
+      petSay(`${icon} 換上「${name}」了！好看嗎？`, 'happy');
+    }
+    W.syncAcc(state.pets);
+    saveState();
+    return true;
+  }
+
+  // 一個裝飾按鈕的狀態：[可不可以直接戴, 小字]
+  function wearLabel(id, info, w) {
+    const W = window.PuppyWear;
+    const r = W.BY_ID[id];
+    const st = W.status(id, info);
+    const sea = W.SEASONS[st[1]] || {};
+    if (st[0] === 'ok') return [true, w[r[3]] === id ? '✓ 戴著' : ''];
+    if (st[0] === 'lv') return [false, `🔒 Lv${st[1]}`];
+    if (st[0] === 'star') return [false, `⭐ ${st[1]}`];
+    if (st[0] === 'claim') return [false, '🎁 免費領'];
+    if (st[0] === 'claim_wait') return [false, '🎁 學習後領'];
+    if (st[0] === 'season') return [false, `${sea.icon} 節日限定`];
+    return [false, ''];
+  }
+
+  // 衣櫃按鈕（圖鑑和百寶箱共用）；attr：按鈕上放代號的屬性；pre：代號前面要加的字
+  function wearButtons(slot, attr, cls, pre) {
+    const W = window.PuppyWear;
+    if (!W) return '';
+    pre = pre || '';
+    const info = wearInfo();
+    const w = W.worn(state.pets);
+    const items = W.CATALOG.filter(r => r[3] === slot);
+    const none = `<button class="chip-btn ${cls} ${w[slot] === 'none' ? 'pp-on' : ''}" ${attr}="${pre}none:${slot}">✨ 不戴</button>`;
+    return none + items.map(r => {
+      const [id, icon, name] = r;
+      const [ok, small] = wearLabel(id, info, w);
+      const on = w[r[3]] === id;
+      const poor = !ok && r[4] === 'star' && (state.stars || 0) < r[5] ? ' chip-poor' : '';
+      return `<button class="chip-btn ${cls} ${on ? 'pp-on' : ''}${ok ? '' : ' wr-locked'}${poor}" ${attr}="${pre}${id}" ${on ? 'aria-pressed="true"' : ''}>${icon} ${name}${small ? `<small>${small}</small>` : ''}</button>`;
+    }).join('');
+  }
+
+  function seasonBanner() {
+    const W = window.PuppyWear;
+    if (!W) return '';
+    const td = todayStr();
+    const learned = ((state.history[td] || {}).xp || 0) > 0;
+    return Object.keys(W.SEASONS).filter(k => W.inSeason(k, td)).map(k => {
+      const s = W.SEASONS[k];
+      return `<div class="wr-season">${s.icon} <b>${s.name}限定禮物開放中</b>（${s.when}）：${learned ? '今天已經學習過，可以免費領取！' : '今天完成一項學習，就能免費領取！'}領了永遠是你的。</div>`;
+    }).join('');
+  }
+
+  function wardrobeHtml() {
+    const W = window.PuppyWear;
+    if (!W) return '';
+    const info = wearInfo();
+    const owned = W.CATALOG.filter(r => W.status(r[0], info)[0] === 'ok').length;
+    return `
+      <div class="section-title"><span>🎀 狗狗衣櫃（已擁有 ${owned} / ${W.CATALOG.length} 樣）</span></div>
+      <p class="section-sub">頭上、臉上、脖子可以各戴一樣，換夥伴也會一起戴著（走來走去的狗狗也看得到）。
+        原本的 4 樣看狗狗親密度解鎖；其他用學習賺到的 ⭐ 星星買一次，永遠是你的。</p>
+      ${seasonBanner()}
+      <div class="wr-wrap">
+        <canvas id="wardrobePic" class="wr-pic" width="200" height="190" aria-label="試穿預覽"></canvas>
+        <div class="wr-slots">
+          ${W.SLOTS.map(([slot, label]) => `
+            <div class="wr-slot"><div class="wr-slot-name">${label}</div>
+              <div class="wr-items">${wearButtons(slot, 'data-wear', 'wr-btn')}</div></div>`).join('')}
+        </div>
+      </div>`;
+  }
+
+  function drawWardrobePic() {
+    const cv = document.getElementById('wardrobePic');
+    if (!cv) return;
+    const c = cv.getContext('2d');
+    c.clearRect(0, 0, cv.width, cv.height);
+    c.beginPath();
+    c.arc(100, 102, 80, 0, Math.PI * 2);
+    c.fillStyle = '#fff5e8';
+    c.fill();
+    drawDogOnCanvas(c, 100, 110, 60, state.pets.current || 'dog:威爾斯柯基', curWear(), 'happy', 0);
+  }
+
+  function bindWardrobe(box, rerender) {
+    if (!box) return;
+    drawWardrobePic();
+    box.querySelectorAll('[data-wear]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (wearAction(btn.dataset.wear)) rerender();
+      });
+    });
+  }
+
+  // ════════════════════════════════════════════════════════════════════
   //  分頁 3：📖 寵物圖鑑與配件
   // ════════════════════════════════════════════════════════════════════
   function renderDexTab() {
     const wrap = document.getElementById('tab-dex');
     const curPet = state.pets.current || 'dog:威爾斯柯基';
-    const curAcc = state.pets.acc || 'none';
-    const dogLv = maxDogLevel();
 
     wrap.innerHTML = `
       <div class="card-box">
@@ -2227,22 +2409,7 @@
         </div>
       </div>
 
-      <div class="card-box">
-        <div class="section-title">
-          <span>🎀 狗狗變裝配件（目前最高狗狗親密度：Lv${dogLv}）</span>
-        </div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
-          ${DOG_ACC.map(([aid, icon, name, needLv]) => {
-            const ok = dogLv >= needLv;
-            const active = curAcc === aid;
-            return `
-              <button class="btn ${active ? 'btn-purple' : 'btn-soft'}" data-use-acc="${aid}" ${!ok ? 'disabled style="opacity:0.5;"' : ''}>
-                ${ok ? icon : '🔒'} ${name} ${ok ? '' : `(需 Lv${needLv})`}
-              </button>
-            `;
-          }).join('')}
-        </div>
-      </div>
+      <div class="card-box" id="wardrobeBox">${wardrobeHtml()}</div>
     `;
 
     // v3.15.1：每一張卡片畫出那一隻的樣子（沒解鎖的是剪影）
@@ -2250,7 +2417,9 @@
       try {
         const c = cv.getContext('2d');
         c.clearRect(0, 0, cv.width, cv.height);
-        drawDogOnCanvas(c, cv.width / 2, cv.height / 2 + 10, 48, cv.dataset.pic, 'none', 'normal', 0);
+        // v3.22.0：目前陪伴中的那一隻戴著衣櫃裡的裝飾
+        const wearHere = cv.dataset.pic === curPet && isPetUnlocked(curPet) ? curWear() : 'none';
+        drawDogOnCanvas(c, cv.width / 2, cv.height / 2 + 14, 44, cv.dataset.pic, wearHere, 'normal', 0);
       } catch (e) { /* 忽略 */ }
     });
     wrap.querySelectorAll('[data-use-pet]').forEach(btn => {
@@ -2265,14 +2434,7 @@
       });
     });
 
-    wrap.querySelectorAll('[data-use-acc]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        state.pets.acc = btn.dataset.useAcc;
-        saveState();
-        petSay('✨ 換上新造型了！好看嗎？', 'happy');
-        renderDexTab();
-      });
-    });
+    bindWardrobe(document.getElementById('wardrobeBox'), () => renderDexTab());
 
     const cardBtn = document.getElementById('btnDexCard');
     if (cardBtn) cardBtn.addEventListener('click', () => openPetCardModal());
@@ -2569,7 +2731,7 @@
     ctx.arc(114, 166, 76, 0, Math.PI * 2);
     ctx.fillStyle = '#f6efff';
     ctx.fill();
-    drawDogOnCanvas(ctx, 114, 170, 56, pid, state.pets.acc || 'none', 'happy', 0);
+    drawDogOnCanvas(ctx, 114, 170, 56, pid, curWear(), 'happy', 0);
 
     ctx.textAlign = 'center';
     ctx.fillStyle = '#4a3b32';
@@ -2774,6 +2936,8 @@
       petSay: (msg, mood) => petSay(msg, mood || 'normal'),
       maxDogLevel: () => maxDogLevel(),
       isPetUnlocked: pid => isPetUnlocked(pid),
+      wearAction: id => wearAction(id),          // v3.22.0：衣櫃
+      wearButtons: (slot, attr, cls, pre) => wearButtons(slot, attr, cls, pre),
       ITEMS, DOG_ACC, DOG_COAT, PETS
     });
   }
@@ -3085,6 +3249,31 @@
           state.pets.bond = { 'dog:威爾斯柯基': 0 }; state.pets.unlocked = { 'dog:威爾斯柯基': todayStr() }; state.pets.acc = 'none';
           PP.click('acc:crown');
           ok(state.pets.acc === 'none', '變裝配件：等級不夠戴不上小皇冠');
+          if (window.PuppyWear) {   // v3.22.0 狗狗衣櫃
+            const W = window.PuppyWear;
+            const pp = { acc: 'sunglasses' }; W.normalize(pp);
+            ok(pp.wear.face === 'sunglasses' && pp.wear.head === 'none' && pp.acc === 'sunglasses' && pp.closet, '衣櫃：舊存檔的配件放進對的位置');
+            ok(W.CATALOG.filter(r => r[4] === 'star').length >= 10 && W.CATALOG.some(r => r[4] === 'xmas') && W.CATALOG.some(r => r[4] === 'ny'), '衣櫃：10 樣以上新裝飾，加上聖誕、新年');
+            ok(W.inSeason('xmas', '2026-12-24') && !W.inSeason('xmas', '2026-07-01') && W.inSeason('ny', '2027-01-15') && W.inSeason('ny', '2026-12-31') && !W.inSeason('ny', '2027-03-01'), '衣櫃：節日期間判斷');
+            state.stars = 5; PP.click('acc:bow');
+            ok(state.stars === 5 && !state.pets.closet.bow, '衣櫃：星星不夠買不到蝴蝶結');
+            state.stars = 30; PP.click('acc:bow');
+            ok(state.stars === 20 && !!state.pets.closet.bow && state.pets.wear.head === 'bow' && state.pets.acc === 'bow', '衣櫃：用 10⭐ 買到蝴蝶結並戴上');
+            PP.click('acc:bow');
+            ok(state.pets.wear.head === 'none' && state.stars === 20, '衣櫃：再按一次拿下來，不會再扣星星');
+            PP.click('acc:bow'); PP.click('acc:round_glasses');
+            ok(state.pets.wear.head === 'bow' && state.pets.wear.face === 'round_glasses' && state.stars === 10, '衣櫃：頭上和臉上可以同時戴');
+            const inf = { lv: 1, vip: false, closet: {}, today: '2026-12-20', learnedToday: false };
+            const st2 = o => W.status('santa_hat', Object.assign({}, inf, o))[0];
+            ok(st2({}) === 'claim_wait' && st2({ learnedToday: true }) === 'claim' && st2({ today: '2026-08-01' }) === 'season' && st2({ today: '2026-08-01', closet: { santa_hat: 'x' } }) === 'ok', '衣櫃：聖誕帽節日期間學習後免費領、領了永久擁有');
+            const back = decodeTransferCode(encodeTransferCode());
+            ok(back.pets.wear.head === 'bow' && !!back.pets.closet.bow && checkSig(back) === 'ok', '衣櫃：搬家碼包含裝飾');
+            back.pets.closet.santa_hat = '2026-12-01';
+            ok(checkSig(back) !== 'ok', '衣櫃：搬家碼裡的裝飾被改過就不能匯入');
+            const m = mergeData(decodeTransferCode(encodeTransferCode()));
+            ok(m.pets.wear.face === 'round_glasses' && !!m.pets.closet.bow, '衣櫃：匯入後裝飾還在');
+            state.stars = 8;   // 後面 VIP 的檢查用 8 顆星
+          }
           PP.click('coat:dog:柴犬');
           ok(state.pets.current !== 'dog:柴犬' || isPetUnlocked('dog:柴犬'), '毛色：還沒解鎖的狗狗不能換');
           ok(V._test.norm(' ab-c d1 ') === 'ABCD1' && V.tryCode('ZZZZ-0000') === 'wrong' && state.stars === 8, 'VIP：錯的代碼沒有效果');

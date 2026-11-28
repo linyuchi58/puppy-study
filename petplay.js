@@ -46,11 +46,12 @@
       }).join('');
     }
     if (sub === 'acc') {
-      const lv = api.maxDogLevel();
-      const cur = s.pets.acc || 'none';
-      return back() + api.DOG_ACC.map(([aid, icon, name, need]) => lv >= need
-        ? tile('acc:' + aid, icon, name, cur === aid ? '✓ 戴著' : '', cur === aid)
-        : `<button class="chip-btn chip-locked" data-pp="acc:${aid}">🔒 ${esc(name)}<small>Lv${need}</small></button>`).join('');
+      // v3.22.0：衣櫃（頭上／臉上／脖子各一樣），按鈕和圖鑑共用 app.js 的 wearButtons
+      if (api.wearButtons && window.PuppyWear) {
+        return back() + window.PuppyWear.SLOTS.map(([slot, label]) =>
+          `<div class="pp-wr-row"><b>${label}</b></div>` + api.wearButtons(slot, 'data-pp', 'pp-tile', 'acc:')).join('');
+      }
+      return back();
     }
     if (sub === 'coat') {
       const cur = s.pets.current;
@@ -73,7 +74,7 @@
       tile('item:bowl', '🥣', '餵飯', price('bowl')),
       tile('item:ball', '⚽', '丟皮球', price('ball')),
       tile('tidy', '🧹', '收玩具'),
-      tile('acc', '🕶', '變裝配件'),
+      tile('acc', '🎀', '變裝配件'),
       tile('item:bath', '🛁', '洗澡', price('bath')),
       tile('coat', '🎨', '毛色'),
       tile('size', '📏', '大小', sizeName()),
@@ -83,7 +84,7 @@
 
   function tip() {
     if (sub === 'props') return '用學習賺到的星星換道具。吃飽了才有力氣玩和表演。';
-    if (sub === 'acc') return '配件看「狗狗夥伴裡最高的親密度」解鎖，換夥伴也能戴。';
+    if (sub === 'acc') return '頭上、臉上、脖子可以各戴一樣。原本 4 樣看親密度，其他用星星買一次永久擁有；聖誕、新年禮物節日期間學習就能免費領。';
     if (sub === 'coat') return '毛色就是換狗狗夥伴，親密度都會保留。還沒解鎖的可以到「寵物圖鑑」看條件。';
     if (sub === 'size') return '只改變在畫面上走動的狗狗大小，每台裝置各自記住。';
     return '跟電腦版一樣的寵物互動。餵飯、丟皮球、洗澡要用星星；收玩具、毛色、大小、靜音都免費。';
@@ -121,17 +122,11 @@
       return true;
     }
     if (id.startsWith('acc:')) {
-      const aid = id.slice(4);
-      const row = api.DOG_ACC.find(r => r[0] === aid);
-      if (!row) return false;
-      if (api.maxDogLevel() < row[3]) {
-        say(`🔒 「${row[2]}」要狗狗親密度 Lv${row[3]} 才能戴（現在 Lv${api.maxDogLevel()}）。一起學習就會解鎖！`);
-        return false;
-      }
-      s.pets.acc = aid;
-      api.save();
-      say(aid === 'none' ? '✨ 拿掉配件，清爽原貌！' : `${row[1]} 換上「${row[2]}」了！好看嗎？`, 'happy');
-      return true;
+      // v3.22.0：交給 app.js 的衣櫃處理（買、領、戴、拿下）
+      if (!api.wearAction) return false;
+      const changed = api.wearAction(id.slice(4));
+      if (changed) api.save();
+      return changed;
     }
     if (id.startsWith('coat:')) {
       const pid = id.slice(5);
@@ -157,6 +152,7 @@
     el.textContent = `
       .pp-on { border-color: #e5679a !important; box-shadow: 0 0 0 2px #fdeef4 inset; background: #fff5f9 !important; }
       .pp-back { background: #f1f2f6 !important; }
+      .pp-wr-row { flex-basis: 100%; width: 100%; font-size: .85rem; color: #8a6d5a; margin-top: 4px; }
       .pp-dot { display: inline-block; width: .9em; height: .9em; border-radius: 50%; border: 1px solid rgba(0,0,0,.25); vertical-align: -1px; }`;
     document.head.appendChild(el);
   }

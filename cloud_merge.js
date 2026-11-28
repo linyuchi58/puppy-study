@@ -8,7 +8,7 @@
   'use strict';
   const DATE_RE = /^\d{4}-\d{2}-\d{2}/;
   // 這些是「設定」：整份用比較晚存的那一邊
-  const NEWER_WINS = new Set(['grade', 'goal_xp', 'settings', 'focus', 'parent', 'format', 'eng.track', 'pets.current', 'pets.acc']);
+  const NEWER_WINS = new Set(['grade', 'goal_xp', 'settings', 'focus', 'parent', 'format', 'eng.track', 'pets.current', 'pets.acc', 'pets.wear']);
   const SKIP = new Set(['sig', 'stars', 'xp_total', 'cloud_ledger', 'saved_at', 'typing.lock', 'typing.who']);
 
   const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
