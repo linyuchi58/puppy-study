@@ -1472,3 +1472,29 @@ body.du-on #worldCanvas { display: none; }
 .td-q-claim { margin-top: 10px; width: 100%; font-size: 1.1rem; animation: tdGlow 1.4s ease-in-out infinite; }
 .td-q-claimed { margin-top: 10px; padding: 10px 14px; border-radius: 14px; background: #f1fbf4; border: 2px solid #8fd3a8; font-weight: 800; color: #23864f; }
 @media (prefers-reduced-motion: reduce) { .td-q-claim { animation: none; } }
+
+/* v3.28.0 益智挑戰共用：紙花、新遊戲共用版面 */
+.fx-confetti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 20; }
+.fx-confetti i { position: absolute; top: -12px; width: 9px; height: 14px; border-radius: 2px; animation: fxFall 1.6s ease-in forwards; }
+@keyframes fxFall { to { top: 105%; transform: rotate(540deg) translateX(30px); opacity: .7; } }
+.ng-tools { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 8px 0; }
+.ng-tools .btn { min-height: 46px; font-size: 1rem; }
+.ng-tool.on { outline: 3px solid #e0533a; background: #ffe9e3; }
+.ng-board { display: block; width: 100%; max-width: 560px; margin: 6px auto; touch-action: none; user-select: none; -webkit-user-select: none; }
+/* 雷射迷宮 */
+.lz-board { background: #12142b; border-radius: 16px; box-shadow: inset 0 0 0 3px #2b2f5c, 0 8px 18px rgba(0,0,0,.25); }
+.lz-cell { fill: #1b1e3d; stroke: #2e3266; stroke-width: .04; }
+.lz-cell.free:hover { fill: #252a55; }
+.lz-wall { fill: #5b5f7a; stroke: #8a8fb0; stroke-width: .05; }
+.lz-beam { fill: none; stroke: #ff3b3b; stroke-width: .13; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 .12px #ff7b7b); }
+.lz-beam-core { fill: none; stroke: #fff2f2; stroke-width: .045; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: .25 .18; animation: lzFlow .6s linear infinite; }
+@keyframes lzFlow { to { stroke-dashoffset: -.43; } }
+.lz-mirror { stroke: #bfe7ff; stroke-width: .12; stroke-linecap: round; }
+.lz-split { stroke: #c78bff; stroke-width: .12; stroke-linecap: round; stroke-dasharray: .14 .07; }
+.lz-piece-bg { fill: rgba(140,200,255,.12); }
+.lz-target { fill: #3a1d1d; stroke: #ff8a65; stroke-width: .07; }
+.lz-target.hit { fill: #ffeb3b; stroke: #fff; animation: lzPulse .7s ease-in-out infinite alternate; }
+@keyframes lzPulse { from { filter: drop-shadow(0 0 .05px #ffeb3b); } to { filter: drop-shadow(0 0 .3px #ffeb3b); } }
+.lz-src { fill: #e53935; stroke: #ffcdd2; stroke-width: .06; }
+.lz-fixed { opacity: .75; }
+.lz-board { max-width: min(560px, 62vh); }

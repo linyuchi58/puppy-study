@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.27.1';
-  const APP_BUILD = '20261128-14';
+  const APP_VERSION = 'v3.28.0';
+  const APP_BUILD = '20261129-1';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
@@ -3722,6 +3722,9 @@
         const LV = window.PuppyLever._t;
         const okAll = LV.PUZZLES.every(pz => pz.fixed.reduce((s, f) => s + f[0] * f[1], 0) + pz.tray.reduce((s, w, k) => s + w * pz.sol[k], 0) === 0 && pz.sol.every(p => p && Math.abs(p) <= 5));
         ok(LV.PUZZLES.length === 10 && okAll && LV.torque([{ w: 2, p: -3 }, { w: 3, p: 2 }]) === 0, '槓桿天平 10 關：每一關的答案都平衡（重量 × 距離）');
+      }
+      if (window.PuppyLaser) {
+        ok(window.PuppyLaser._t.checkAll() && window.PuppyLaser.LEVELS.length === 8, '雷射迷宮 8 關：每一關照答案放鏡子都打得中全部靶心、什麼都不放時打不中');
       }
       if (window.PuppyGomoku) {
         const GK = window.PuppyGomoku._t, N = GK.N, b = new Array(N * N).fill(0), ix = (x, y) => y * N + x;

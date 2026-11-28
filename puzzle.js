@@ -211,9 +211,10 @@
     { id: 'gomoku', ico: '⚫', name: '五子棋', sub: '先連成 5 顆就贏' },
     { id: 'sudoku', ico: '🔢', name: '數獨', sub: '數字不重複' },
     { id: 'slide', ico: '🔲', name: '數字華容道', sub: '滑回 1、2、3' },
-    { id: 'lever', ico: '⚖️', name: '槓桿天平', sub: '科學：讓它平衡' }
+    { id: 'lever', ico: '⚖️', name: '槓桿天平', sub: '科學：讓它平衡' },
+    { id: 'laser', ico: '🔦', name: '雷射迷宮', sub: '光的反射打中靶心' }
   ];
-  const SUBS = { tangram: 'PuppyTangram', gomoku: 'PuppyGomoku', sudoku: 'PuppySudoku', slide: 'PuppySlide', lever: 'PuppyLever' };
+  const SUBS = { tangram: 'PuppyTangram', gomoku: 'PuppyGomoku', sudoku: 'PuppySudoku', slide: 'PuppySlide', lever: 'PuppyLever', laser: 'PuppyLaser' };
   function subMod(id) { return SUBS[id] ? window[SUBS[id]] || null : null; }
   function hubHtml() {
     const list = HUBS.filter(h => h.id === 'cube' || subMod(h.id));
