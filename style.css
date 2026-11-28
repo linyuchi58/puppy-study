@@ -1342,3 +1342,23 @@ body.pet-hidden .layout { grid-template-columns: minmax(0, 1fr); }
   .wr-wrap { flex-direction: column; align-items: center; }
   .wr-slots { width: 100%; }
 }
+/* ── v3.23.0 🌟 今天分頁、錯題複習本 ── */
+.nav-tab { position: relative; }
+.nav-tab[data-tab="today"] { --c: #e0a400; --cl: #fff6d6; }
+.nav-badge { position: absolute; top: 2px; right: 6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: #e53935; color: #fff; font-size: 0.75rem; font-weight: 900; line-height: 20px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+.nav-badge[hidden] { display: none; }
+/* 8 個分頁：中等寬度也改成上下排（圖示在上、字在下），才擠得下 */
+@media (min-width: 901px) and (max-width: 1500px) {
+  .nav-tab { flex-direction: column; gap: 2px; min-height: 64px; padding: 4px 2px; }
+  .nav-lbl { font-size: 0.95rem; letter-spacing: 0; }
+}
+.td-pill { font-size: 0.85rem; font-weight: 800; background: #fff6d6; color: #8a6500; border-radius: 999px; padding: 3px 12px; }
+.td-card { margin-top: 12px; }
+.td-rv-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin-top: 8px; border-radius: 16px; background: #f7f3ee; border: 2px solid transparent; }
+.td-rv-row.due { background: #fff4e6; border-color: #ffc98a; }
+.td-rv-ico { font-size: 1.8rem; }
+.td-rv-txt { flex: 1; display: flex; flex-direction: column; }
+.td-rv-txt b { font-size: 1.1rem; }
+.td-rv-txt small { color: var(--muted); font-size: 0.85rem; }
+.td-rv-ok { color: #23864f; font-weight: 800; }
+.mc-rv { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 6px 0 10px; padding: 10px 14px; border-radius: 16px; background: #fff4e6; border: 2px solid #ffc98a; font-weight: 700; }

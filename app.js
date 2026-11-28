@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.22.1';
-  const APP_BUILD = '20261128-8';
+  const APP_VERSION = 'v3.23.0';
+  const APP_BUILD = '20261128-9';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
@@ -1235,6 +1235,25 @@
     document.getElementById('topHearts').textContent = state.eng.hearts;
     const gs = document.getElementById('gradeSelect');
     if (gs && gs.value !== state.grade) gs.value = state.grade;
+    updateTodayBadge();
+  }
+  // v3.23.0：底部「🌟 今天」按鈕上的小紅點（今天要複習幾題）
+  function updateTodayBadge() {
+    try {
+      const b = document.getElementById('todayBadge');
+      if (!b || !window.PuppyToday) return;
+      const n = window.PuppyToday.badgeCount();
+      b.textContent = n > 99 ? '99+' : String(n);
+      b.hidden = !n;
+    } catch (e) { /* 忽略 */ }
+  }
+  // v3.23.0：英語今天要複習幾個字（和 startReviewSession 挑字的規則一樣）
+  function engReviewInfo() {
+    const td = todayStr(), words = (state.eng && state.eng.words) || {};
+    const mistakes = (state.eng.mistakes || []).length;
+    const mset = new Set(state.eng.mistakes || []);
+    const due = Object.keys(words).filter(k => (words[k].b || 0) >= 1 && (words[k].d || '') <= td && !mset.has(parseInt(k, 10))).length;
+    return { due, mistakes };
   }
 
   function updatePetSidebar() {
@@ -2792,7 +2811,7 @@
   }
 
   // ── 切換分頁與事件綁定 ──
-  const PET_TABS = ['checkin', 'dex', 'transfer'];
+  const PET_TABS = ['today', 'checkin', 'dex', 'transfer'];
   function switchTab(tab) {
     // v3.7.6：打字測驗模式中（含測驗結束等老師解除），不能切到別的分頁
     if (tab !== 'typing' && window.PuppyTyping && window.PuppyTyping.isExam && window.PuppyTyping.isExam()) tab = 'typing';
@@ -2800,7 +2819,7 @@
     if (window.PuppyTyping && activeTab === 'typing' && tab !== 'typing') window.PuppyTyping.hide();
     activeTab = tab;
     if (window.PuppyPuzzle && activeTab === 'puzzle' && tab !== 'puzzle') window.PuppyPuzzle.hide();
-    ['english', 'checkin', 'typing', 'math', 'puzzle', 'dex', 'transfer'].forEach(t => {
+    ['today', 'english', 'checkin', 'typing', 'math', 'puzzle', 'dex', 'transfer'].forEach(t => {
       const pane = document.getElementById('tab-' + t);
       if (pane) pane.style.display = t === tab ? 'block' : 'none';
     });
@@ -2810,6 +2829,8 @@
     // v3.21.0：學習活動時（英語、打字、心算、益智）收起左邊狗狗區和走動的狗狗，只在打卡、圖鑑、搬家碼顯示
     document.body.classList.toggle('pet-hidden', PET_TABS.indexOf(tab) < 0);
     if (tab === 'english') renderEnglishTab();
+    if (tab === 'today' && window.PuppyToday) window.PuppyToday.show();
+    updateTodayBadge();
     if (tab === 'checkin') renderCheckinTab();
     if (tab === 'dex') renderDexTab();
     if (tab === 'transfer') renderTransferTab();
@@ -2998,6 +3019,19 @@
       award: (xp, stars, subj, text) => award(xp, stars, subj, text),
       focus: () => syncFocusMode(),
       mathCorrect: n => { state.totals.math_correct = (state.totals.math_correct || 0) + Math.max(0, n || 0); }
+    });
+  }
+  // v3.23.0：🌟 今天（錯題複習本……）
+  if (window.PuppyToday) {
+    window.PuppyToday.mount(document.getElementById('tab-today'), {
+      getState: () => state,
+      save: () => saveState(),
+      award: (xp, stars, subj, text) => award(xp, stars, subj, text),
+      petSay: (msg, mood) => petSay(msg, mood || 'happy'),
+      engReview: () => engReviewInfo(),
+      goEnglishReview: () => { switchTab('english'); startReviewSession(); },
+      goMathReview: () => { switchTab('math'); if (window.PuppyMath && !window.PuppyMath.startReview()) window.PuppyMath.show(); },
+      switchTab: t => switchTab(t)
     });
   }
   // v3.14.0：🧩 益智挑戰（魔術方塊）
@@ -3545,6 +3579,29 @@
         mc.prog.u13 = 3;                 // 精熟 5 年級的課
         ok(MT.tooEasy(MT.BY_ID.a1) && MT.tooEasy(MT.BY_ID.d1) && !MT.tooEasy(MT.BY_ID.x3) && !MT.tooEasy(MT.BY_ID.v2), '精熟 5 年級的課後，1～3 年級的課算「太簡單」（重複練習不加經驗值），4 年級以上不算');
         mc.prog = {}; mc.days = {}; state.totals.math_correct = 0;
+        // v3.23.0：錯題複習本（隔 1、3、7 天，三次一次答對就畢業；答錯回到隔 1 天）
+        mc.rv = {};
+        const qv = MC[0].gen();
+        MT.rvAdd(qv, MC[0].id);
+        const k0 = Object.keys(mc.rv)[0], td0 = todayStr();
+        ok(k0 && mc.rv[k0].due === MT.addDays(td0, 1) && MT.rvDue().length === 0 && MT.rvStats().total === 1, '答錯的題目收進錯題本，明天才要複習');
+        mc.rv[k0].due = td0;
+        ok(MT.rvDue().length === 1 && window.PuppyToday && window.PuppyToday.badgeCount() >= 1, '到期的題目出現在「今天」的複習數量');
+        ok(MT.rvResult(k0, 'ok') === 'up' && mc.rv[k0].due === MT.addDays(td0, 3), '第一次複習答對：隔 3 天再出');
+        MT.rvResult(k0, 'ok');
+        ok(mc.rv[k0].due === MT.addDays(td0, 7), '第二次答對：隔 7 天再出');
+        ok(MT.rvResult(k0, 'ok') === 'grad' && mc.rv[k0].g && MT.rvStats().total === 0 && MT.rvStats().grad === 1, '第三次答對：畢業，不會再出');
+        MT.rvAdd(qv, MC[0].id); MT.rvResult(k0, 'ok'); MT.rvResult(k0, 'fixed');
+        ok(!mc.rv[k0].g && mc.rv[k0].lv === 0 && mc.rv[k0].due === MT.addDays(td0, 1), '畢業的題目又答錯會回到本子；看提示才訂正算還沒記熟（隔 1 天）');
+        for (let i = 0; i < 120; i++) MT.rvAdd({ q: 'T' + i, a: '1' }, 'zz');
+        ok(MT.rvStats().total <= 80, '錯題本最多留 80 題（最舊的拿掉）');
+        mc.rv = {}; mc.rv[k0] = Object.assign({}, qv, { cid: MC[0].id, lv: 0, due: td0, add: td0 });
+        const starsB = state.stars;
+        ok(window.PuppyMath.startReview() && MT.run() && MT.run().rv && MT.run().qs.length === 1, '開始錯題複習：只出到期的題目');
+        MT.finishNow();
+        ok(MT.view() === 'result' && MT.last().rv && MT.today().rv === 1, '複習完成有紀錄（每日任務會用到）');
+        ok(state.stars === starsB, '一題都沒答就結束，不給星星');
+        MT.setView('home'); mc.rv = {}; mc.days = {};
       }
       // v3.14.0：益智挑戰（魔術方塊）
       if (window.PuppyPuzzle) {

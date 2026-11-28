@@ -12,6 +12,12 @@
   const REPLAY_PER_DAY = 3;
   const FAST_MS = 500;          // 一題不到 0.5 秒就答完：太快，可能沒在想
   const FAST_LIMIT = 5;
+  // v3.23.0 🔁 錯題複習本：答錯（或看提示才訂正）的題目，隔 1 天、3 天、7 天再出一次；三次都一次答對就「畢業」
+  const RV_STEPS = [1, 3, 7];
+  const RV_ROUND = 10;          // 一回最多幾題
+  const RV_KEEP = 80;           // 還沒畢業的最多留幾題（太多就把最舊的拿掉）
+  const RV_XP = 2;              // 複習時一次答對一題的經驗值（和心算經驗值共用每天上限）
+  const RV_COURSE = { id: '_rv', name: '🔁 錯題複習', t: 20, gr: 0 };
 
   const R = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
   const pick = arr => arr[Math.floor(Math.random() * arr.length)];
@@ -326,7 +332,7 @@
     const st = api.getState();
     if (!st.mathc || typeof st.mathc !== 'object' || Array.isArray(st.mathc)) st.mathc = {};
     const m = st.mathc;
-    ['prog', 'best', 'days', 'weak'].forEach(k => { if (!m[k] || typeof m[k] !== 'object' || Array.isArray(m[k])) m[k] = {}; });
+    ['prog', 'best', 'days', 'weak', 'rv'].forEach(k => { if (!m[k] || typeof m[k] !== 'object' || Array.isArray(m[k])) m[k] = {}; });
     return m;
   }
   function today() {
@@ -339,6 +345,56 @@
   function stars(id) { return Math.max(0, Math.min(3, +data().prog[id] || 0)); }
   function maxMasteredGrade() { let g = 0; COURSES.forEach(c => { if (stars(c.id) >= 3) g = Math.max(g, c.gr); }); return g; }
   function tooEasy(c) { return c.gr <= maxMasteredGrade() - 2; }
+
+  // ── v3.23.0 錯題複習本 ──
+  // 存在 state.mathc.rv：{ 題目代號: { q, a, hint, say, fr, v, form, cid, lv, due, add, n, g, gd } }
+  //   lv：已經複習答對幾次（0～3）；due：哪一天要再出；g：畢業了（留著紀錄，雲端合併才不會又冒出來）
+  function addDays(day, n) { const t = new Date(day + 'T12:00:00'); t.setDate(t.getDate() + n); const z = x => String(x).padStart(2, '0'); return `${t.getFullYear()}-${z(t.getMonth() + 1)}-${z(t.getDate())}`; }
+  function rvKey(cid, q) { return cid + '|' + q.q; }
+  function rvAdd(q, cid) {
+    const rv = data().rv, k = rvKey(cid, q), td = todayStr();
+    const old = rv[k];
+    const it = { q: q.q, a: q.a, cid, lv: 0, due: addDays(td, RV_STEPS[0]), add: td, n: ((old && old.n) || 0) + 1 };
+    ['hint', 'say', 'fr', 'v', 'form'].forEach(f => { if (q[f] !== undefined) it[f] = q[f]; });
+    rv[k] = it;
+    // 太多就把最舊的拿掉（畢業的也只留最近 100 題）
+    const act = Object.keys(rv).filter(x => !rv[x].g).sort((x, y) => String(rv[x].add).localeCompare(String(rv[y].add)));
+    act.slice(0, Math.max(0, act.length - RV_KEEP)).forEach(x => { delete rv[x]; });
+    const gr = Object.keys(rv).filter(x => rv[x].g).sort((x, y) => String(rv[x].gd || '').localeCompare(String(rv[y].gd || '')));
+    gr.slice(0, Math.max(0, gr.length - 100)).forEach(x => { delete rv[x]; });
+  }
+  // 複習時的結果：ok＝一次就答對；fixed＝看提示才對；其他＝沒答對
+  function rvResult(k, how) {
+    const it = data().rv[k], td = todayStr();
+    if (!it) return '';
+    if (how === 'ok') {
+      it.lv = (+it.lv || 0) + 1;
+      if (it.lv >= RV_STEPS.length) { it.g = true; it.gd = td; return 'grad'; }
+      it.due = addDays(td, RV_STEPS[it.lv]);
+      return 'up';
+    }
+    it.lv = 0; it.due = addDays(td, RV_STEPS[0]);
+    return 'again';
+  }
+  function rvList() { const rv = data().rv; return Object.keys(rv).filter(k => rv[k] && !rv[k].g); }
+  function rvDue() { const rv = data().rv, td = todayStr(); return rvList().filter(k => String(rv[k].due || '') <= td).sort((x, y) => String(rv[x].due).localeCompare(String(rv[y].due))); }
+  function rvStats() {
+    const rv = data().rv, td = todayStr(), list = rvList();
+    const next = list.map(k => rv[k].due).filter(d => d > td).sort()[0] || '';
+    return { due: rvDue().length, total: list.length, grad: Object.keys(rv).filter(k => rv[k].g).length, next };
+  }
+  function startReview() {
+    const keys = rvDue().slice(0, RV_ROUND);
+    if (!keys.length) return false;
+    const rv = data().rv;
+    const qs = keys.map(k => Object.assign({ _k: k }, rv[k]));
+    pad.acts = []; pad.cur = null;
+    run = { c: RV_COURSE, rv: true, qs, i: 0, input: '', fin: { w: '', n: '', d: '' }, box: 'd', tries: 0, firstOk: 0, fixed: 0, wrong: 0, fast: 0, started: Date.now(), qAt: Date.now(), activeMs: 0, msg: '', hint: '', reveal: '', lock: false, wrongList: [], grad: 0, up: 0 };
+    view = 'play';
+    render();
+    sayQ();
+    return true;
+  }
 
   // ── 一回 ──
   function startCourse(id) {
@@ -414,6 +470,7 @@
       const spent = now - run.qAt;
       run.activeMs += Math.min(60000, spent);
       if (run.tries === 0) { run.firstOk += 1; if (spent < FAST_MS) run.fast += 1; } else run.fixed += 1;
+      if (run.rv) { const r = rvResult(q._k, run.tries === 0 ? 'ok' : 'fixed'); if (r === 'grad') run.grad += 1; else if (r === 'up') run.up += 1; }
       run.lock = true; run.msg = run.tries === 0 ? pick(['✔ 答對了！', '✔ 好厲害！', '✔ 正確！']) : '✔ 訂正成功！';
       if (jf && jf.note) run.msg += jf.note;
       paintAll();
@@ -422,6 +479,7 @@
     }
     if (!jf && !byEnter && normAns(run.input).length < q.a.length) return 'typed';
     run.tries += 1;
+    if (run.tries === 1 && !run.rv) { try { rvAdd(q, run.c.id); } catch (e) { /* 忽略 */ } }
     if (run.tries === 1) {
       run.hint = q.hint || '再看一次題目，一步一步算';
       run.msg = '再想一想，看下面的 💡 提示';
@@ -431,6 +489,7 @@
     }
     // 第二次也錯：公布答案，換下一題
     run.wrong += 1;
+    if (run.rv) rvResult(q._k, 'wrong');
     run.activeMs += Math.min(60000, now - run.qAt);
     run.wrongList.push(`${q.q.replace(/ ？(（[^）]*）)?$/, '')} ${q.a}`);
     run.reveal = `答案是 ${q.a}` + (q.fr && q.v.d > 1 && q.v.n > q.v.d && !q.form ? `（也可以寫成 ${q.v.n}/${q.v.d}）` : '');
@@ -443,11 +502,28 @@
   function next() {
     if (!run) return;
     run.i += 1; run.input = ''; run.fin = { w: '', n: '', d: '' }; run.box = 'd'; run.tries = 0; run.msg = ''; run.hint = ''; run.reveal = ''; run.lock = false; run.qAt = Date.now();
-    if (run.i >= ROUND_N) { finish(); return; }
+    if (run.i >= run.qs.length) { finish(); return; }
     render();
     sayQ();
   }
+  function finishReview() {
+    const d = today(), n = run.qs.length;
+    d.rv = (d.rv || 0) + 1;
+    const left = Math.max(0, DAY_XP_CAP - (d.xp || 0));
+    let xp = Math.min(left, run.firstOk * RV_XP), stars = 0;
+    let note = run.grad ? `有 ${run.grad} 題畢業了，以後不會再出現！` : '';
+    if (!d.rvStar && run.firstOk + run.fixed >= Math.ceil(n / 2)) { d.rvStar = 1; stars = 1; }
+    if (!note) note = run.wrong ? '沒答對的題目，明天會再出一次。' : '答對的題目會隔幾天再出一次，三次都答對就畢業。';
+    d.xp = (d.xp || 0) + xp;
+    last = { c: RV_COURSE, rv: true, s: 0, best: 0, sec: Math.round((Date.now() - run.started) / 1000), target: 0, firstOk: run.firstOk, fixed: run.fixed, wrong: run.wrong, xp, gotStars: stars, note, wrongList: run.wrongList.slice(0, 6), treat: 0, grad: run.grad, left: rvStats().due };
+    run = null;
+    view = 'result';
+    api.save();
+    if (xp > 0 || stars > 0) api.award(xp, stars, 'math', '錯題複習');
+    render();
+  }
   function finish() {
+    if (run.rv) return finishReview();
     const c = run.c, m = data(), d = today();
     const sec = Math.round((Date.now() - run.started) / 1000);
     const target = c.t * ROUND_N;
@@ -604,6 +680,7 @@
         <div class="section-title"><span>🧮 心算挑戰</span><span class="ty-today-pill">今天心算經驗值 ${d.xp || 0}／${DAY_XP_CAP}</span></div>
         <p class="section-sub">自己挑一門課，一回 10 題。答錯會出現 <b>💡 提示</b>，再答一次。<b>一次就全對、又在時間內</b>可以拿 3 顆星。<br>
           每門課的星星最多 3 顆；同一門課每天重複練習最多 ${REPLAY_PER_DAY} 次有經驗值${mg >= 3 ? `；比你已經精熟的程度（${mg} 年級）簡單兩級以上的課，重複練習不加經驗值` : ''}。</p>
+        ${rvBanner()}
         <div class="mc-tools"><label class="mc-speak"><input type="checkbox" id="mcSpeak" ${speak ? 'checked' : ''}> 🔊 唸出題目</label><span class="section-sub" style="margin:0;">已經過關 ${doneN}／${COURSES.length} 門課</span></div>
         ${GROUPS.map(([g, label]) => {
           const list = COURSES.filter(c => c.g === g);
@@ -618,6 +695,12 @@
             }).join('')}</div></details>`;
         }).join('')}
       </div>`;
+  }
+  function rvBanner() {
+    const s = rvStats();
+    if (!s.total) return '';
+    return `<div class="mc-rv"><span>🔁 錯題複習本：還有 <b>${s.total}</b> 題${s.due ? `，今天要複習 <b>${s.due}</b> 題` : s.next ? `，下一次複習是 ${s.next.slice(5).replace('-', '/')}` : ''}</span>
+      ${s.due ? '<button class="btn btn-orange" id="mcRvGo">開始複習</button>' : ''}</div>`;
   }
   function playHtml() {
     const q = cur();
@@ -642,12 +725,12 @@
     return `
       <div class="card-box ty-result">
         <h2>🧮 ${esc(r.c.name)}</h2>
-        <div class="ty-stars-big">${starStr(r.s)}</div>
+        ${r.rv ? `<div class="ty-stars-big">${r.grad ? '🎓'.repeat(Math.min(5, r.grad)) : '🔁'}</div>` : `<div class="ty-stars-big">${starStr(r.s)}</div>`}
         <div class="ty-result-grid">
           <div><b>${r.firstOk}</b><span>一次就答對</span></div>
           <div><b>${r.fixed}</b><span>看提示後訂正</span></div>
           <div><b>${r.wrong}</b><span>沒答對</span></div>
-          <div><b>${r.sec} 秒</b><span>用時（3 星要 ${r.target} 秒內）</span></div>
+          ${r.rv ? `<div><b>${r.grad}</b><span>畢業（不會再出）</span></div>` : `<div><b>${r.sec} 秒</b><span>用時（3 星要 ${r.target} 秒內）</span></div>`}
         </div>
         <p class="ty-note">${esc(r.note)}</p>
         ${r.xp ? `<p class="section-sub">獲得 +${r.xp} 經驗值${r.gotStars ? `、+${r.gotStars}⭐` : ''}</p>` : ''}
@@ -655,7 +738,7 @@
         ${r.wrongList.length ? `<div class="mc-wrong"><b>📝 記起來：</b>${r.wrongList.map(w => `<div>${fracHtml(w)}</div>`).join('')}</div>` : ''}
         <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:10px;">
           <button class="btn btn-soft" id="mcHome">回到課程</button>
-          <button class="btn btn-orange" id="mcAgain">🔁 再挑戰一次</button>
+          ${r.rv ? (r.left ? `<button class="btn btn-orange" id="mcRvAgain">🔁 還有 ${r.left} 題要複習</button>` : '') : '<button class="btn btn-orange" id="mcAgain">🔁 再挑戰一次</button>'}
         </div>
       </div>`;
   }
@@ -681,6 +764,8 @@
     on('#mcQuit', () => { if (confirm('要結束這一回嗎？這一回不會記錄。')) { run = null; view = 'home'; render(); } });
     on('#mcHome', () => { view = 'home'; render(); });
     on('#mcAgain', () => startCourse(last.c.id));
+    on('#mcRvAgain', () => startReview());
+    on('#mcRvGo', () => startReview());
     if (view === 'play') { paintAll(); initPad(); }
     try { if (api && api.focus) api.focus(); } catch (e) { /* 忽略 */ }   // 作答時狗狗到角落，不擋按鍵
   }
@@ -708,8 +793,10 @@
       if (!ticker) ticker = setInterval(() => { if (view === 'play' && run && pane) { const t = pane.querySelector('#mcTime'); if (t) t.textContent = Math.round((Date.now() - run.started) / 1000) + ' 秒'; } }, 500);
     },
     show() { render(); },
+    startReview() { if (!api) return false; const ok = startReview(); return ok; },
+    reviewStats() { try { return api ? rvStats() : { due: 0, total: 0, grad: 0, next: '' }; } catch (e) { return { due: 0, total: 0, grad: 0, next: '' }; } },
     hide() { },
     COURSES, GROUPS,
-    _t: { pad: () => pad, startCourse, typeKey, normAns, sameAns, judgeFrac, fracHtml, mixStr, fr, data, today, stars, tooEasy, maxMasteredGrade, BY_ID, run: () => run, last: () => last, view: () => view, DAY_XP_CAP, REPLAY_PER_DAY, finishNow: () => finish(), setView: v => { view = v; } }
+    _t: { pad: () => pad, startCourse, typeKey, normAns, sameAns, judgeFrac, fracHtml, mixStr, fr, data, today, stars, tooEasy, maxMasteredGrade, BY_ID, run: () => run, last: () => last, view: () => view, DAY_XP_CAP, REPLAY_PER_DAY, finishNow: () => finish(), rvAdd, rvResult, rvDue, rvStats, addDays, RV_STEPS, setView: v => { view = v; } }
   };
 })();
