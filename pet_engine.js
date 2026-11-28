@@ -1190,6 +1190,18 @@
       return false;
     }
 
+    // v3.21.1：手指用的寬鬆判定（整隻狗狗的範圍再放大一點，耳朵、腳、尾巴都算）
+    hitLoose(x, y) {
+      if (this.hit(x, y) || this.hitHead(x, y)) return true;
+      const S = world.S;
+      const pts = Object.values(this.rendered);
+      if (!pts.length) return false;
+      let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      pts.forEach(([px, py]) => { x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py); });
+      const pad = 22 * S;
+      return x >= x0 - pad && x <= x1 + pad && y >= y0 - pad - 10 * S && y <= Math.max(y1 + pad, this.y + 6 * S);
+    }
+
     hitHead(x, y) {
       const S = world.S;
       const [hx, hy] = this.rendered.head || [this.x, this.y - 60 * S];
@@ -1673,9 +1685,8 @@
 
     // v3.20.1：v3.19.2 起改由 body 捲動，iPad Safari 手指按在狗狗身上時，捲動可能把觸控搶走。
     // 按到狗狗或玩具時先鎖住捲動，放開（或觸控被取消）再解開。
-    function lockScroll(ev) {
-      if (ev && ev.type && ev.type.indexOf('touch') === 0) document.documentElement.classList.add('pet-drag-lock');
-    }
+    // v3.21.1：改 overflow 可能讓瀏覽器取消觸控，拿掉；touchstart 的 preventDefault 已經能擋住捲動
+    function lockScroll() { /* 不再改捲動 */ }
     function unlockScroll() {
       document.documentElement.classList.remove('pet-drag-lock');
     }
@@ -1690,15 +1701,19 @@
     function onDown(ev) {
       if (document.body.classList.contains('pet-hidden')) return;   // v3.21.0：學習分頁時狗狗收起來
       const tg = ev.target;
-      if (tg && tg.closest && tg.closest('button, a, input, select, textarea, label, .checkin-item, .modal-backdrop.open')) return;
+      // 對話框、輸入框裡面不抓狗狗
+      if (tg && tg.closest && tg.closest('input, select, textarea, .modal-backdrop.open')) return;
       const pt = getPt(ev);
+      // v3.21.1：狗狗畫在最上層，所以先看有沒有按到狗狗或玩具；都沒有才讓底下的按鈕正常運作
+      const onPet = world.toys.some(t => Math.hypot(pt.x - t.x, pt.y - t.y) <= 30 * world.S) || world.dog.hitLoose(pt.x, pt.y);
+      if (!onPet && tg && tg.closest && tg.closest('button, a, label, .checkin-item')) return;
       world.mouse.x = pt.x;
       world.mouse.y = pt.y;
       world.mouse.down = true;
 
       // 先檢查是否點到玩具
       for (const t of world.toys) {
-        if (Math.hypot(pt.x - t.x, pt.y - t.y) <= 26 * world.S) {
+        if (Math.hypot(pt.x - t.x, pt.y - t.y) <= 30 * world.S) {
           dragMode = 'toy';
           draggedToy = t;
           t.held = true;
@@ -1712,7 +1727,7 @@
       }
 
       // 檢查是否點到狗狗
-      if (world.dog.hit(pt.x, pt.y)) {
+      if (world.dog.hitLoose(pt.x, pt.y)) {
         downPt = { x: pt.x, y: pt.y, t: performance.now() };
         lastPt = pt;
         vxTrack = 0;
@@ -1750,7 +1765,8 @@
         ev.preventDefault();
       } else if (dragMode === 'rub_or_drag') {
         // 往上拉超過 28px ＝ 拎起狗狗；左右來回 ＝ 摸摸頭與翻肚肚
-        if (downPt.y - pt.y > 32) {
+        // v3.21.1：往上拉 22px，或往任何方向拉遠 46px，都算拎起來（摸頭是來回摩擦，不會拉很遠）
+        if (downPt.y - pt.y > 22 || distFromDown > 46) {
           dragMode = 'dog';
           world.dog.hx = pt.x;
           world.dog.hy = pt.y;
@@ -1834,7 +1850,14 @@
         }
       }
       dragMode = null;
+      suppressClickUntil = performance.now() + 450;
     }
+
+    // v3.21.1：抓狗狗的那一下，不要同時按到狗狗底下的按鈕
+    let suppressClickUntil = 0;
+    window.addEventListener('click', ev => {
+      if (performance.now() < suppressClickUntil) { ev.preventDefault(); ev.stopPropagation(); suppressClickUntil = 0; }
+    }, true);
 
     window.addEventListener('mousedown', onDown, { passive: false });
     window.addEventListener('mousemove', onMove, { passive: false });
