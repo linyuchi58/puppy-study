@@ -1510,3 +1510,18 @@ body.du-on #worldCanvas { display: none; }
 .pe-piece.shadow { opacity: .3; pointer-events: none; }
 .pe-piece.won rect { animation: peWin .6s ease-in-out 3 alternate; }
 @keyframes peWin { to { filter: brightness(1.35); } }
+/* v3.30.0 數學釘板 */
+.gb-board { max-width: min(520px, 60vh); }
+.gb-bg { fill: #f7e3c6; stroke: #c9a27a; stroke-width: .06; }
+.gb-sq { fill: none; stroke: #ead2b0; stroke-width: .02; }
+.gb-peg { fill: #8d6e63; stroke: #fff; stroke-width: .04; pointer-events: none; }
+.gb-peg.first { fill: #ff7043; animation: lzPulse .6s ease-in-out infinite alternate; }
+.gb-hit { fill: transparent; cursor: pointer; }
+.gb-band { stroke-width: .09; stroke-linejoin: round; stroke-linecap: round; }
+.gb-band.cur { stroke-dasharray: .2 .1; pointer-events: none; }
+.gb-axis { stroke: #333; stroke-width: .04; stroke-dasharray: .15 .1; pointer-events: none; }
+.gb-goal { background: #fff3e0; border: 2px dashed #ffb74d; border-radius: 14px; padding: 8px 12px; margin: 6px auto; max-width: 560px; font-size: 1.08rem; text-align: center; }
+.gb-info { display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: center; font-size: 1.05rem; margin: 4px 0; }
+.gb-info b { color: #e0533a; font-size: 1.2rem; }
+.gb-col i { display: inline-block; width: 22px; height: 22px; border-radius: 50%; background: var(--c); vertical-align: middle; }
+.gb-col.on { outline: 3px solid var(--c); }
