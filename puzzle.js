@@ -215,9 +215,10 @@
     { id: 'laser', ico: '🔦', name: '雷射迷宮', sub: '光的反射打中靶心' },
     { id: 'pento', ico: '🟩', name: '五格骨牌', sub: '5 格骨牌拼滿框框' },
     { id: 'geo', ico: '📌', name: '數學釘板', sub: '橡皮筋圍圖形' },
-    { id: 'marble', ico: '🎱', name: '滾珠軌道', sub: '物理：彈珠滾進杯子' }
+    { id: 'marble', ico: '🎱', name: '滾珠軌道', sub: '物理：彈珠滾進杯子' },
+    { id: 'soma', ico: '🧊', name: '索瑪立方塊', sub: '3D 七巧板＋三視圖' }
   ];
-  const SUBS = { tangram: 'PuppyTangram', gomoku: 'PuppyGomoku', sudoku: 'PuppySudoku', slide: 'PuppySlide', lever: 'PuppyLever', laser: 'PuppyLaser', pento: 'PuppyPento', geo: 'PuppyGeo', marble: 'PuppyMarble' };
+  const SUBS = { tangram: 'PuppyTangram', gomoku: 'PuppyGomoku', sudoku: 'PuppySudoku', slide: 'PuppySlide', lever: 'PuppyLever', laser: 'PuppyLaser', pento: 'PuppyPento', geo: 'PuppyGeo', marble: 'PuppyMarble', soma: 'PuppySoma' };
   function subMod(id) { return SUBS[id] ? window[SUBS[id]] || null : null; }
   function hubHtml() {
     const list = HUBS.filter(h => h.id === 'cube' || subMod(h.id));

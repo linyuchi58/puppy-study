@@ -1527,3 +1527,23 @@ body.du-on #worldCanvas { display: none; }
 .gb-col.on { outline: 3px solid var(--c); }
 /* v3.31.0 滾珠軌道 */
 .mb-board { max-width: min(640px, 100%, 80vh); aspect-ratio: 4 / 3; border-radius: 16px; box-shadow: 0 6px 16px rgba(0,0,0,.18); background: #e3f2fd; }
+/* v3.32.0 索瑪立方塊 */
+.sm-wrap { display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; }
+.sm-stage { width: min(420px, 92vw); height: 320px; perspective: 900px; display: flex; align-items: center; justify-content: center; touch-action: none; user-select: none; -webkit-user-select: none; background: radial-gradient(circle at 50% 40%, #fffdf5, #f1e6ff); border-radius: 18px; cursor: grab; }
+.sm-scene { position: relative; width: 0; height: 0; transform-style: preserve-3d; }
+.sm-cube { position: absolute; width: 46px; height: 46px; left: -23px; top: -23px; transform-style: preserve-3d; }
+.sm-f { position: absolute; inset: 0; border: 1px solid rgba(0,0,0,.25); border-radius: 4px; backface-visibility: hidden; }
+.sm-cube.slot .sm-f { background: rgba(255,213,79,.35); border: 2px dashed #ffb300; cursor: pointer; }
+.sm-cube.ghost { pointer-events: none; }
+.sm-cube.ghost .sm-f { background: rgba(126,87,194,.05); border: 1px dashed rgba(126,87,194,.35); }
+.sm-cube.solid { cursor: pointer; }
+.sm-cube.won .sm-f { animation: peWin .6s ease-in-out 3 alternate; }
+.sm-views { display: flex; flex-direction: column; gap: 6px; }
+.sm-v { display: flex; align-items: center; gap: 6px; }
+.sm-v svg { width: 56px; height: 56px; }
+.sm-v rect { fill: #eee; } .sm-v rect.on { fill: #7e57c2; }
+.sm-tray { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 8px 0; }
+.sm-pc { display: flex; flex-direction: column; align-items: center; border: 2px solid #ddd; border-radius: 14px; background: #fff; padding: 2px 6px; font-family: inherit; cursor: pointer; min-width: 70px; }
+.sm-pc.on { border-color: var(--c); box-shadow: 0 0 0 3px var(--c); }
+.sm-pc.used { opacity: .4; }
+@media (max-width: 560px) { .sm-views { flex-direction: row; } }

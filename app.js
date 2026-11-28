@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.31.0';
-  const APP_BUILD = '20261129-4';
+  const APP_VERSION = 'v3.32.0';
+  const APP_BUILD = '20261129-5';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
@@ -3734,6 +3734,9 @@
       }
       if (window.PuppyMarble) {
         ok(window.PuppyMarble._t.checkAll() && window.PuppyMarble.LEVELS.length === 6, '滾珠軌道 6 關：照答案擺零件，物理模擬彈珠會進杯子；什麼都不擺進不去');
+      }
+      if (window.PuppySoma) {
+        ok(window.PuppySoma._t.checkAll() && window.PuppySoma.LEVELS.length === 5, '索瑪立方塊 5 關：每一關的答案都剛好填滿造型（7 塊拼成 3×3×3），積木形狀正確');
       }
       if (window.PuppyGomoku) {
         const GK = window.PuppyGomoku._t, N = GK.N, b = new Array(N * N).fill(0), ix = (x, y) => y * N + x;
