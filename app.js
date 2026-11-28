@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.26.0';
-  const APP_BUILD = '20261128-12';
+  const APP_VERSION = 'v3.27.0';
+  const APP_BUILD = '20261128-13';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
@@ -3831,6 +3831,25 @@
         ok(DT.game().done && state.stars === s0 + 1, '一天最多 3 場參加獎');
         window.PuppyDuel.close();
         ok(!window.PuppyDuel.isOpen() && !document.body.classList.contains('du-on'), '結束對戰回到原本畫面');
+        state = loadState();
+      }
+      // v3.27.0：每日三任務
+      if (window.PuppyToday) {
+        state = loadState();
+        const TT = window.PuppyToday._t;
+        let qbad = '';
+        for (let i = 0; i < 60 && !qbad; i++) { const d = todayStr(i); const q = TT.questsOf(d).map(x => x[0]); if (q.length !== 3 || new Set(q).size !== 3 || TT.questsOf(d).some(x => !x)) qbad = d + '：' + q.join(','); }
+        ok(!qbad, '每天固定挑 3 個不一樣的任務（看 60 天）' + (qbad ? '：' + qbad : ''));
+        ok(TT.questsOf(todayStr()).map(x => x[0]).join() === TT.questsOf(todayStr()).map(x => x[0]).join() && TT.questsOf(todayStr(0)).map(x => x[0]).join() !== TT.questsOf(todayStr(1)).map(x => x[0]).join() + '|', '同一天的任務固定不變（不是隨機）');
+        const td = todayStr();
+        ok(!TT.questStatus().all && TT.claimQuest() === false, '任務還沒完成不能領獎勵');
+        state.history = {}; state.history[td] = { xp: 40, english: 3, review: 1, puzzle: 1 };
+        state.mathc = { prog: {}, best: {}, weak: {}, rv: {}, days: {} }; state.mathc.days[td] = { plays: { a1: 1 }, ok: 0, wrong: 0, ms: 0, xp: 0 };
+        state.typing = { days: {} }; state.typing.days[td] = { lessons: 1, ms: 0, ok: 0, miss: 0, mash: 0 };
+        state.checkins = {}; state.checkins[td] = { a: 1, b: 1 };
+        ok(TT.questProgress('eng', td) === 2 && TT.questProgress('engrv', td) === 1 && TT.questProgress('math', td) === 1 && TT.questProgress('typing', td) === 1 && TT.questProgress('checkin', td) === 2 && TT.questProgress('xp', td) === 40, '任務進度直接從今天的紀錄算（英語闖關不含複習）');
+        const qs0 = state.stars;
+        ok(TT.questStatus().all && TT.claimQuest() && state.stars === qs0 + 3 && !TT.claimQuest() && state.stars === qs0 + 3, '三項都完成：+3⭐，一天只能領一次');
         state = loadState();
       }
       ok(/^v\d+\.\d+\.\d+$/.test(APP_VERSION) && /^\d{8}-\d+$/.test(APP_BUILD), '版本與建置編號格式正確：' + APP_VERSION + ' ' + APP_BUILD);

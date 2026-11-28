@@ -1,6 +1,6 @@
 // -*- coding: utf-8 -*-
 // 《汪汪小精靈 學習小伙伴》網頁版 —— 🌟「今天」分頁（v3.23.0 起）
-// 把「每天回來要做的事」放在同一頁：錯題複習本（v3.23.0）、20 天成長地圖（v3.24.0）、每週學習小報告（v3.25.0）、雙人對戰入口（v3.26.0，duel.js）……之後的版本會再加成長地圖、每週報告、雙人對戰、每日任務。
+// 把「每天回來要做的事」放在同一頁：錯題複習本（v3.23.0）、20 天成長地圖（v3.24.0）、每週學習小報告（v3.25.0）、雙人對戰入口（v3.26.0，duel.js）、每日三任務（v3.27.0）。之後的版本會再加成長地圖、每週報告、雙人對戰、每日任務。
 // 這個檔案只負責畫面；存檔、獎勵都透過 app.js 給的 hooks（getState、save、award…），規則和其他分頁一樣。
 (function () {
   'use strict';
@@ -180,6 +180,86 @@
 
   function mmdd(day) { return day ? day.slice(5).replace('-', '/') : ''; }
 
+  // ── ✅ 每日三任務（v3.27.0）──
+  // 每天從下面的清單挑 3 項（依日期固定挑，同一天每個人都一樣；不是抽獎），三項都完成就能領固定獎勵。
+  // 任務完成與否直接看當天的紀錄，不用另外打勾，所以學生沒辦法自己加任務、刷星星。
+  // [代號, 圖示, 說明, 目標, 要去的分頁]
+  const QUESTS = [
+    ['eng', '🦉', '英語闖關完成 1 關', 1, 'english'],
+    ['engrv', '💪', '英語「錯題／加愛心」複習 1 次', 1, 'english'],
+    ['math', '🧮', '心算挑戰完成 1 回', 1, 'math'],
+    ['typing', '⌨️', '打字練習完成 1 回', 1, 'typing'],
+    ['puzzle', '🧩', '益智挑戰過關 1 次', 1, 'puzzle'],
+    ['checkin', '📝', '自我打卡完成 2 項', 2, 'checkin'],
+    ['xp', '✨', '今天賺到 30 經驗值', 30, '']
+  ];
+  const QUEST_STARS = 3, QUEST_XP = 5;
+  function dayIndex(day) { return Math.round(new Date(day + 'T12:00:00').getTime() / 86400000); }
+  // 依日期固定挑 3 項：英語、心算／打字、其他各一類輪流，避免三項都同一科
+  function questsOf(day) {
+    const n = dayIndex(day);
+    const A = ['eng', 'engrv'], B = ['math', 'typing'], C = ['puzzle', 'checkin', 'xp', 'math', 'typing'];
+    const a = A[n % A.length], b = B[Math.floor(n / 2) % B.length];
+    let c = C[n % C.length];
+    if (c === b) c = C[(n + 1) % C.length] === b ? C[(n + 2) % C.length] : C[(n + 1) % C.length];
+    return [a, b, c].map(id => QUESTS.find(q => q[0] === id));
+  }
+  function questProgress(id, day) {
+    const st = H.getState();
+    const h = (st.history || {})[day] || {};
+    if (id === 'eng') return Math.max(0, num(h.english) - num(h.review));
+    if (id === 'engrv') return num(h.review);
+    if (id === 'math') { const m = (st.mathc && st.mathc.days && st.mathc.days[day]) || {}; return Object.values(m.plays || {}).reduce((x, y) => x + num(y), 0) + num(m.rv); }
+    if (id === 'typing') return ['typing', 'zhuyin', 'chinese'].reduce((x, k) => x + num(st[k] && st[k].days && st[k].days[day] && st[k].days[day].lessons), 0);
+    if (id === 'puzzle') return num(h.puzzle);
+    if (id === 'checkin') return Object.keys((st.checkins && st.checkins[day]) || {}).length;
+    if (id === 'xp') return num(h.xp);
+    return 0;
+  }
+  function questData() {
+    const st = H.getState();
+    if (!st.quest || typeof st.quest !== 'object' || Array.isArray(st.quest)) st.quest = {};
+    if (!st.quest.days || typeof st.quest.days !== 'object') st.quest.days = {};
+    Object.keys(st.quest.days).sort().slice(0, -60).forEach(k => { delete st.quest.days[k]; });
+    return st.quest;
+  }
+  function questStatus(day) {
+    day = day || todayStr();
+    const list = questsOf(day).map(q => { const p = questProgress(q[0], day); return { q, p: Math.min(p, q[3]), done: p >= q[3] }; });
+    const all = list.every(x => x.done);
+    const claimed = !!questData().days[day];
+    return { day, list, all, claimed, ready: all && !claimed };
+  }
+  function claimQuest() {
+    const s = questStatus();
+    if (!s.ready) return false;
+    const qd = questData();
+    qd.days[s.day] = 1;
+    qd.total = (qd.total || 0) + 1;
+    H.award(QUEST_XP, QUEST_STARS, null, '✅ 今天的三個任務全部完成');
+    return true;
+  }
+  function questHtml() {
+    const s = questStatus();
+    const doneN = s.list.filter(x => x.done).length;
+    const rows = s.list.map(({ q, p, done }) => `
+      <div class="td-q-row${done ? ' done' : ''}">
+        <span class="td-q-ico">${done ? '✔️' : q[1]}</span>
+        <span class="td-q-txt">${esc(q[2])}${q[3] > 1 ? `<small>${p}／${q[3]}</small>` : ''}</span>
+        ${done ? '<span class="td-q-ok">完成</span>' : q[4] ? `<button class="btn btn-soft td-q-go" type="button" data-qgo="${q[4]}">去做 ›</button>` : '<span class="td-q-wait">學什麼都算</span>'}
+      </div>`).join('');
+    let foot;
+    if (s.claimed) foot = '<div class="td-q-claimed">🎉 今天的任務都完成了，也領過獎勵了！明天會換新的任務。</div>';
+    else if (s.all) foot = `<button class="btn btn-orange td-q-claim" id="tdQuestClaim" type="button">🎁 領取獎勵：+${QUEST_STARS}⭐、+${QUEST_XP} 經驗值</button>`;
+    else foot = `<div class="section-sub" style="margin:6px 0 0;">三項都完成就能領 +${QUEST_STARS}⭐、+${QUEST_XP} 經驗值。</div>`;
+    return `
+      <div class="card-box td-card td-quest">
+        <div class="section-title"><span>✅ 今天的三個任務</span><span class="td-pill">${doneN}／3</span></div>
+        ${rows}
+        ${foot}
+      </div>`;
+  }
+
   // ── 🔁 錯題複習本（v3.23.0）──
   function reviewHtml() {
     const e = H.engReview ? H.engReview() : { due: 0, mistakes: 0 };
@@ -209,8 +289,9 @@
     pane.innerHTML = `
       <div class="td-head card-box">
         <div class="section-title"><span>🌟 今天</span><span class="td-pill">🔥 連續 ${(H.getState().streak || {}).n || 0} 天</span></div>
-        <p class="section-sub">每天回來先看這一頁：今天該複習什麼，一眼就知道。</p>
+        <p class="section-sub">每天回來先看這一頁：今天的任務、該複習什麼、成長地圖走到哪裡，一眼就知道。</p>
       </div>
+      ${questHtml()}
       ${reviewHtml()}
       ${mapHtml()}
       ${window.PuppyDuel ? window.PuppyDuel.cardHtml() : ''}
@@ -219,6 +300,8 @@
     on('#tdRvMath', () => H.goMathReview());
     on('#tdRvEng', () => H.goEnglishReview());
     if (window.PuppyDuel) window.PuppyDuel.bindCard(pane, render);
+    pane.querySelectorAll('[data-qgo]').forEach(b => b.addEventListener('click', () => H.switchTab(b.dataset.qgo)));
+    on('#tdQuestClaim', () => { if (claimQuest()) render(); });
     on('#tdWkPrev', () => { weekOff -= 1; render(); });
     on('#tdWkNext', () => { if (weekOff < 0) { weekOff += 1; render(); } });
     on('#tdPrint', () => {
@@ -241,7 +324,7 @@
     try {
       const e = H.engReview ? H.engReview() : { due: 0, mistakes: 0 };
       const m = window.PuppyMath && window.PuppyMath.reviewStats ? window.PuppyMath.reviewStats() : { due: 0 };
-      return e.due + e.mistakes + m.due + mapReady().length;
+      return e.due + e.mistakes + m.due + mapReady().length + (questStatus().ready ? 1 : 0);
     } catch (err) { return 0; }
   }
 
@@ -249,6 +332,6 @@
     mount(el, hooks) { pane = el; H = hooks; },
     show() { render(); },
     badgeCount,
-    _t: { render, weekDays, weekStats, setWeek: n => { weekOff = n; }, MAP_STOPS, mapReady, claimStop, gmap }
+    _t: { render, QUESTS, questsOf, questProgress, questStatus, claimQuest, questData, weekDays, weekStats, setWeek: n => { weekOff = n; }, MAP_STOPS, mapReady, claimStop, gmap }
   };
 })();

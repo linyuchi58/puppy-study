@@ -1458,3 +1458,17 @@ body.du-on #worldCanvas { display: none; }
 .du-opts .chip-btn small { display: block; font-size: 0.72rem; color: var(--muted); }
 .du-go { margin-top: 8px; min-width: 200px; font-size: 1.1rem; }
 @media (orientation: landscape) and (max-height: 600px) { .du-chs { grid-template-columns: repeat(4, 1fr); } .du-q { font-size: 1.6rem; } .du-score b { font-size: 1.4rem; } }
+/* ── v3.27.0 ✅ 每日三任務 ── */
+.td-quest { border: 2px solid #ffd36b; }
+.td-q-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin-top: 8px; border-radius: 16px; background: #fffaf0; border: 2px solid #f3e3c3; }
+.td-q-row.done { background: #f1fbf4; border-color: #8fd3a8; }
+.td-q-ico { font-size: 1.5rem; width: 1.6em; text-align: center; }
+.td-q-txt { flex: 1; font-weight: 800; font-size: 1.05rem; }
+.td-q-txt small { margin-left: 8px; color: var(--muted); font-weight: 700; }
+.td-q-row.done .td-q-txt { color: #23864f; }
+.td-q-ok { color: #23864f; font-weight: 900; }
+.td-q-wait { color: var(--muted); font-size: 0.85rem; }
+.td-q-go { min-height: 38px; padding: 6px 14px; }
+.td-q-claim { margin-top: 10px; width: 100%; font-size: 1.1rem; animation: tdGlow 1.4s ease-in-out infinite; }
+.td-q-claimed { margin-top: 10px; padding: 10px 14px; border-radius: 14px; background: #f1fbf4; border: 2px solid #8fd3a8; font-weight: 800; color: #23864f; }
+@media (prefers-reduced-motion: reduce) { .td-q-claim { animation: none; } }
