@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.24.0';
-  const APP_BUILD = '20261128-10';
+  const APP_VERSION = 'v3.25.0';
+  const APP_BUILD = '20261128-11';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
@@ -3056,6 +3056,7 @@
       },
       wearOf: id => (window.PuppyWear && window.PuppyWear.BY_ID[id]) || null,
       isVip: () => !!(state.vip && state.vip.on),
+      petName: () => (PETS.find(r => r[0] === state.pets.current) || PETS[0])[2],
       goEnglishReview: () => { switchTab('english'); startReviewSession(); },
       goMathReview: () => { switchTab('math'); if (window.PuppyMath && !window.PuppyMath.startReview()) window.PuppyMath.show(); },
       switchTab: t => switchTab(t)
@@ -3760,6 +3761,23 @@
         ok(TT.claimStop(3) && state.pets.closet.map_clover && window.PuppyWear.worn(state.pets).head === 'map_clover', '領第 3 天：幸運草髮夾放進衣櫃並戴上');
         ok(!TT.claimStop(5) && !TT.gmap().got[5], '還沒走到第 5 天不能領');
         ok(TT.mapReady().length === 0, '領完就沒有發亮的禮物');
+        state = loadState();
+      }
+      // v3.25.0：每週學習小報告
+      if (window.PuppyToday) {
+        state = loadState();
+        const TT = window.PuppyToday._t;
+        const wk = TT.weekDays(0), wp = TT.weekDays(-1);
+        const dow = new Date(wk[0] + 'T12:00:00').getDay();
+        ok(wk.length === 7 && dow === 1 && wk.indexOf(todayStr()) >= 0 && wp[6] < wk[0], '一週是星期一到星期日，這一週包含今天，上一週在前面');
+        state.history = {}; state.history[wk[0]] = { xp: 20, english: 2 }; state.history[wk[2]] = { xp: 15, puzzle: 1 }; state.history[wp[3]] = { xp: 10 };
+        state.mathc = { prog: {}, best: {}, weak: {}, rv: {}, days: {} }; state.mathc.days[wk[2]] = { xp: 10, plays: { a1: 2, a2: 1 }, ok: 25, wrong: 5, ms: 0, rv: 1 };
+        state.typing = { days: {} }; state.typing.days[wk[0]] = { ms: 600000, ok: 90, miss: 10, mash: 0, lessons: 3 };
+        state.checkins = {}; state.checkins[wk[0]] = { a: 1, b: 1 };
+        state.tstamp.stamps = {}; state.tstamp.stamps[wk[0]] = 3;
+        const W = TT.weekStats(0), P = TT.weekStats(-1);
+        ok(W.learned === 2 && W.xpSum === 35 && P.learned === 1 && P.xpSum === 10, '報告：這週學習 2 天、35 經驗值；上週 1 天、10 經驗值');
+        ok(W.eng === 2 && W.math === 3 && W.mathOk === 25 && W.rv === 1 && W.ty === 3 && W.tyMin === 10 && W.tyOk === 90 && W.puzzle === 1 && W.checks === 2 && W.tstamp === 1, '報告：英語 2 關、心算 3 回 25 題、複習 1 次、打字 3 回 10 分鐘、益智 1、打卡 2 項、老師蓋章 1 天');
         state = loadState();
       }
       ok(/^v\d+\.\d+\.\d+$/.test(APP_VERSION) && /^\d{8}-\d+$/.test(APP_BUILD), '版本與建置編號格式正確：' + APP_VERSION + ' ' + APP_BUILD);
