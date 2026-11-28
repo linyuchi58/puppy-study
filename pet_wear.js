@@ -43,7 +43,14 @@
     ['fu', '🧧', '「福」字髮飾', 'head', 'ny', 0],
     ['lantern', '🏮', '小燈籠', 'head', 'ny', 0],
     ['gold_party', '🎊', '新年金色派對帽', 'head', 'ny', 0],
-    ['red_envelope', '🧧', '紅包項鍊', 'neck', 'ny', 0]
+    ['red_envelope', '🧧', '紅包項鍊', 'neck', 'ny', 0],
+
+    // v3.24.0 🗺️ 20 天成長地圖限定（累積學習到第 N 天，在「🌟 今天」分頁領取；數值＝第幾天）
+    ['map_clover', '🍀', '幸運草髮夾', 'head', 'map', 3],
+    ['map_compass', '🧭', '指南針項鍊', 'neck', 'map', 7],
+    ['map_rainbow', '🌈', '彩虹圍巾', 'neck', 'map', 11],
+    ['map_star', '🌟', '閃亮星星髮夾', 'head', 'map', 15],
+    ['map_trophy', '🏆', '探險家獎盃項鍊', 'neck', 'map', 20]
   ];
   const BY_ID = {};
   CATALOG.forEach(r => { BY_ID[r[0]] = r; });
@@ -98,6 +105,7 @@
     if (how === 'lv') return info.lv >= val || info.vip ? ['ok'] : ['lv', val];
     if (owned) return ['ok'];
     if (how === 'star') return ['star', val];
+    if (how === 'map') return ['map', val];
     if (!inSeason(how, info.today)) return ['season', how];
     return info.learnedToday ? ['claim', how] : ['claim_wait', how];
   }
@@ -426,6 +434,8 @@
       case 'flower_crown': flowerCrown(ctx, x, y, u, d); break;
       case 'unicorn': unicorn(ctx, x + d * 0.05 * u, y + 0.05 * u, u, d); break;
       case 'fu': fuCharm(ctx, x, y, u); break;
+      case 'map_clover': emoji(ctx, '🍀', x + (d ? -d * 0.35 : 0.45) * u, y - 0.02 * u, 0.85 * u); break;
+      case 'map_star': emoji(ctx, '🌟', x + (d ? -d * 0.3 : -0.45) * u, y - 0.05 * u, 0.85 * u); break;
       default: break;
     }
   }
@@ -443,6 +453,9 @@
     else if (id === 'bowtie') bowtie(ctx, A.nx + (A.dir || 0) * 0.1 * u, A.ny + 0.1 * u, u, '#e53935');
     else if (id === 'medal') pendant(ctx, A, '🏅', '#1e88e5');
     else if (id === 'red_envelope') pendant(ctx, A, '🧧', '#e53935');
+    else if (id === 'map_compass') pendant(ctx, A, '🧭', '#8d6e63');
+    else if (id === 'map_trophy') pendant(ctx, A, '🏆', '#f9a825');
+    else if (id === 'map_rainbow') scarf(ctx, A, ['#ef5350', '#ffee58', '#42a5f5']);
   }
 
   // 一次畫完三個位置。順序：脖子 → 臉 → 頭（帽子蓋在最上面）

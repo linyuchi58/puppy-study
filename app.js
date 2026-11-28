@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.23.0';
-  const APP_BUILD = '20261128-9';
+  const APP_VERSION = 'v3.24.0';
+  const APP_BUILD = '20261128-10';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
@@ -634,7 +634,7 @@
       case 'focus1': return [Math.min(1, (t.focus_sessions || 0) + (t.hw_done || 0)), 1];
       case 'stage3': return [Math.min(3, t.stage_pass || 0), 3];
       case 'days10': {
-        const days = Object.keys(state.history || {}).filter(k => state.history[k] && state.history[k].xp > 0).length;
+        const days = learnDays();
         return [Math.min(10, Math.max(days, (state.streak && state.streak.best) || 0)), 10];
       }
       case 'eng5': return [Math.min(5, t.eng_lessons || 0), 5];
@@ -654,6 +654,11 @@
       case 'stars150': return [Math.min(150, t.stars_earned || 0), 150];
       default: return [0, 1];
     }
+  }
+
+  // 累積學習天數（不用連續）：有拿到經驗值的日子
+  function learnDays() {
+    return Object.keys(state.history || {}).filter(k => state.history[k] && state.history[k].xp > 0).length;
   }
 
   function isPetUnlocked(pid) {
@@ -2268,6 +2273,10 @@
       petSay(`🔒 「${name}」要狗狗親密度 Lv${val} 才能戴（現在 Lv${maxDogLevel()}）。一起學習就會解鎖！`, 'normal');
       return false;
     }
+    if (st[0] === 'map') {
+      petSay(`🗺️ 「${name}」是成長地圖的禮物：累積學習 ${val} 天（不用連續），到「🌟 今天」分頁領取！現在 ${learnDays()} 天。`, 'normal');
+      return false;
+    }
     if (st[0] === 'season') {
       petSay(`${sea.icon} 「${name}」是${sea.name}限定禮物，${sea.when}學習就能免費領喔！`, 'normal');
       return false;
@@ -2323,6 +2332,7 @@
     if (st[0] === 'ok') return [true, w[r[3]] === id ? '✓ 戴著' : ''];
     if (st[0] === 'lv') return [false, `🔒 Lv${st[1]}`];
     if (st[0] === 'star') return [false, `⭐ ${st[1]}`];
+    if (st[0] === 'map') return [false, `🗺️ 第 ${st[1]} 天`];
     if (st[0] === 'claim') return [false, '🎁 免費領'];
     if (st[0] === 'claim_wait') return [false, '🎁 學習後領'];
     if (st[0] === 'season') return [false, `${sea.icon} 節日限定`];
@@ -2366,7 +2376,7 @@
     return `
       <div class="section-title"><span>🎀 狗狗衣櫃（已擁有 ${owned} / ${W.CATALOG.length} 樣）</span></div>
       <p class="section-sub">頭上、臉上、脖子可以各戴一樣，換夥伴也會一起戴著（走來走去的狗狗也看得到）。
-        原本的 4 樣看狗狗親密度解鎖；其他用學習賺到的 ⭐ 星星買一次，永遠是你的。</p>
+        原本的 4 樣看狗狗親密度解鎖；其他用學習賺到的 ⭐ 星星買一次，永遠是你的；🗺️ 是成長地圖的禮物（「🌟 今天」分頁）。</p>
       ${seasonBanner()}
       <div class="wr-wrap">
         <canvas id="wardrobePic" class="wr-pic" width="200" height="190" aria-label="試穿預覽"></canvas>
@@ -3029,6 +3039,23 @@
       award: (xp, stars, subj, text) => award(xp, stars, subj, text),
       petSay: (msg, mood) => petSay(msg, mood || 'happy'),
       engReview: () => engReviewInfo(),
+      learnDays: () => learnDays(),
+      learnedToday: () => ((state.history[todayStr()] || {}).xp || 0) > 0,
+      // v3.24.0：成長地圖的裝飾禮物：放進衣櫃並戴上
+      giveWear: id => {
+        const W = window.PuppyWear;
+        const r = W && W.BY_ID[id];
+        if (!r) return false;
+        state.pets.closet[id] = todayStr();
+        W.worn(state.pets)[r[3]] = id;
+        W.syncAcc(state.pets);
+        saveState();
+        updatePetSidebar();
+        if (window.PuppyInteractive && window.PuppyInteractive.react) window.PuppyInteractive.react('pat');
+        return true;
+      },
+      wearOf: id => (window.PuppyWear && window.PuppyWear.BY_ID[id]) || null,
+      isVip: () => !!(state.vip && state.vip.on),
       goEnglishReview: () => { switchTab('english'); startReviewSession(); },
       goMathReview: () => { switchTab('math'); if (window.PuppyMath && !window.PuppyMath.startReview()) window.PuppyMath.show(); },
       switchTab: t => switchTab(t)
@@ -3719,6 +3746,22 @@
       ok(window.PuppyApp.adoptCloud(cc) === false && state.stars === 3, '雲端那一份被改過（簽章不對）就不換');
       try { localStorage.removeItem(STORAGE_KEY + '.before_cloud'); } catch (e) { /* 忽略 */ }
       dailyKeys().forEach(k => localStorage.removeItem(k));
+      // v3.24.0：20 天成長地圖
+      if (window.PuppyToday && window.PuppyWear) {
+        state = loadState();
+        const TT = window.PuppyToday._t;
+        state.history = { '2020-01-01': { xp: 5 }, '2020-01-02': { xp: 0 }, '2020-01-03': { xp: 5 }, '2020-01-05': { xp: 9 } };
+        ok(learnDays() === 3 && TT.mapReady().map(x => x[0]).join(',') === '1,3', '累積學習 3 天（xp 0 的日子不算）：第 1、3 天的禮物可以領');
+        ok(TT.MAP_STOPS.length === 10 && TT.MAP_STOPS[TT.MAP_STOPS.length - 1][0] === 20 && TT.MAP_STOPS.every((x, i, a) => !i || x[0] - a[i - 1][0] <= 3), '地圖 10 份禮物、最後在第 20 天、每 2～3 天一份');
+        ok(TT.MAP_STOPS.filter(x => x[1] === 'wear').every(x => window.PuppyWear.BY_ID[x[2]] && window.PuppyWear.BY_ID[x[2]][4] === 'map'), '地圖的裝飾都在衣櫃清單裡（地圖限定）');
+        ok(window.PuppyWear.status('map_clover', wearInfo())[0] === 'map' && wearAction('map_clover') === false, '還沒領的地圖裝飾不能直接戴、也不能用星星買');
+        const s0 = state.stars;
+        ok(TT.claimStop(1) && state.stars === s0 + 3 && !TT.claimStop(1) && state.stars === s0 + 3, '領第 1 天：+3⭐，不能重複領');
+        ok(TT.claimStop(3) && state.pets.closet.map_clover && window.PuppyWear.worn(state.pets).head === 'map_clover', '領第 3 天：幸運草髮夾放進衣櫃並戴上');
+        ok(!TT.claimStop(5) && !TT.gmap().got[5], '還沒走到第 5 天不能領');
+        ok(TT.mapReady().length === 0, '領完就沒有發亮的禮物');
+        state = loadState();
+      }
       ok(/^v\d+\.\d+\.\d+$/.test(APP_VERSION) && /^\d{8}-\d+$/.test(APP_BUILD), '版本與建置編號格式正確：' + APP_VERSION + ' ' + APP_BUILD);
     } catch (e) {
       fails.push('發生例外：' + (e && e.message ? e.message : String(e)));

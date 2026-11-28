@@ -1362,3 +1362,24 @@ body.pet-hidden .layout { grid-template-columns: minmax(0, 1fr); }
 .td-rv-txt small { color: var(--muted); font-size: 0.85rem; }
 .td-rv-ok { color: #23864f; font-weight: 800; }
 .mc-rv { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 6px 0 10px; padding: 10px 14px; border-radius: 16px; background: #fff4e6; border: 2px solid #ffc98a; font-weight: 700; }
+/* ── v3.24.0 🗺️ 20 天成長地圖 ── */
+.td-map-tip { margin: 6px 0 10px; padding: 10px 14px; border-radius: 14px; background: #eef8ff; border: 2px solid #a9d4f5; font-weight: 700; }
+.td-map-today { display: block; font-weight: 600; font-size: 0.86rem; color: var(--muted); margin-top: 2px; }
+.td-map { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 18px; background: repeating-linear-gradient(45deg, #f4fbef, #f4fbef 12px, #eef7e8 12px, #eef7e8 24px); }
+.td-map-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.td-cell { position: relative; min-height: 70px; border-radius: 16px; background: #fff; border: 2px dashed #cfc3b6; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px; font: inherit; color: var(--text); }
+.td-cell.reached { border-style: solid; border-color: #8fd3a8; background: #f1fbf4; }
+.td-cell.stop { border-color: #ffc98a; }
+.td-cell.stop.reached { border-color: #ffb050; }
+.td-cell.got { background: #fff8ec; opacity: .85; }
+.td-cell.pet { border-color: #d9b8f0; }
+.td-cell.ready { cursor: pointer; background: #fff2c2; border-color: #f5a400; box-shadow: 0 0 0 3px rgba(245, 164, 0, .25); animation: tdGlow 1.4s ease-in-out infinite; }
+.td-cell.ready small { color: #b35c00; font-weight: 900; }
+.td-cell.here { outline: 3px solid #3d8fd6; outline-offset: 1px; }
+.td-day { position: absolute; top: 3px; left: 7px; font-size: 0.75rem; font-weight: 900; color: #9a8b7e; }
+.td-gift { font-size: 1.6rem; line-height: 1.1; }
+.td-cell small { font-size: 0.72rem; color: var(--muted); }
+.td-me { position: absolute; right: 4px; bottom: 2px; font-size: 1rem; }
+@keyframes tdGlow { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+@media (max-width: 480px) { .td-cell { min-height: 58px; } .td-gift { font-size: 1.3rem; } .td-map, .td-map-row { gap: 5px; } .td-map { padding: 6px; } }
+@media (prefers-reduced-motion: reduce) { .td-cell.ready { animation: none; } }
