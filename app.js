@@ -3,8 +3,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = 'v3.28.0';
-  const APP_BUILD = '20261129-1';
+  const APP_VERSION = 'v3.29.0';
+  const APP_BUILD = '20261129-2';
   window.PUPPY_VERSION = APP_VERSION + '（' + APP_BUILD + '）';   // v3.8.1：測驗準備畫面顯示版本，方便老師確認全班同一版
   // 網址加 ?selftest=1 或 ?apptest=1 是自動測試：用另一個存檔位置，不會動到學生真正的紀錄
   const SELFTEST = /[?&](selftest|apptest)=1/.test(location.search);
@@ -3725,6 +3725,9 @@
       }
       if (window.PuppyLaser) {
         ok(window.PuppyLaser._t.checkAll() && window.PuppyLaser.LEVELS.length === 8, '雷射迷宮 8 關：每一關照答案放鏡子都打得中全部靶心、什麼都不放時打不中');
+      }
+      if (window.PuppyPento) {
+        ok(window.PuppyPento._t.checkAll() && window.PuppyPento.LEVELS.length === 8, '五格骨牌 8 關（3 塊到 12 塊）：每一關的答案都剛好拼滿、不重疊、形狀正確');
       }
       if (window.PuppyGomoku) {
         const GK = window.PuppyGomoku._t, N = GK.N, b = new Array(N * N).fill(0), ix = (x, y) => y * N + x;

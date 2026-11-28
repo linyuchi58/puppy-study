@@ -1498,3 +1498,15 @@ body.du-on #worldCanvas { display: none; }
 .lz-src { fill: #e53935; stroke: #ffcdd2; stroke-width: .06; }
 .lz-fixed { opacity: .75; }
 .lz-board { max-width: min(560px, 62vh); }
+/* v3.29.0 五格骨牌 */
+.pe-board { max-width: min(640px, 100%); max-height: 68vh; }
+.pe-frame { fill: #fff3e0; stroke: #e0533a; stroke-width: .08; }
+.pe-cell { fill: #fffaf4; stroke: #f0cfc4; stroke-width: .03; }
+.pe-tray { fill: #f3f0ff; stroke: #d6cff5; stroke-width: .04; }
+.pe-piece rect { stroke: rgba(0,0,0,.25); stroke-width: .05; }
+.pe-piece { cursor: grab; }
+.pe-piece.last rect { stroke: #333; stroke-width: .1; }
+.pe-piece.drag { opacity: .85; filter: drop-shadow(0 .15px .2px rgba(0,0,0,.4)); pointer-events: none; }
+.pe-piece.shadow { opacity: .3; pointer-events: none; }
+.pe-piece.won rect { animation: peWin .6s ease-in-out 3 alternate; }
+@keyframes peWin { to { filter: brightness(1.35); } }

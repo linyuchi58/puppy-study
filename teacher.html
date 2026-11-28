@@ -191,12 +191,12 @@
     </section>
   </main>
 
-  <script src="./stamp.js?v=20261129-1"></script>
-  <script src="./cloud_config.js?v=20261129-1"></script>
-  <script src="./teacher_stamp.js?v=20261129-1"></script>
-  <script src="./typing.js?v=20261129-1"></script>
-  <script src="./jsqr.js?v=20261129-1"></script>
-  <script src="./zxing_reader.js?v=20261129-1"></script>
+  <script src="./stamp.js?v=20261129-2"></script>
+  <script src="./cloud_config.js?v=20261129-2"></script>
+  <script src="./teacher_stamp.js?v=20261129-2"></script>
+  <script src="./typing.js?v=20261129-2"></script>
+  <script src="./jsqr.js?v=20261129-2"></script>
+  <script src="./zxing_reader.js?v=20261129-2"></script>
   <script>
   (function () {
     'use strict';
@@ -471,7 +471,7 @@
     try {
       if (window.ZXingWASM && window.WebAssembly) {
         window.ZXingWASM.prepareZXingModule({
-          overrides: { locateFile: (path, prefix) => (path.endsWith('.wasm') ? './zxing_reader.wasm?v=20261129-1' : prefix + path) },
+          overrides: { locateFile: (path, prefix) => (path.endsWith('.wasm') ? './zxing_reader.wasm?v=20261129-2' : prefix + path) },
           fireImmediately: true
         }).then(() => { zx = window.ZXingWASM; }).catch(() => { zx = null; });
       }
